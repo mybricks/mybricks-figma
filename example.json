@@ -1,0 +1,85 @@
+{
+  "page": {
+    "component-def": [
+      {
+        "type": "button",
+        "className": "btn-primary",
+        "style": {
+          "width": 120,
+          "height": 40,
+          "fills": ["#3B82F6"],
+          "borderRadius": 8,
+          "layoutMode": "VERTICAL",
+          "primaryAxisAlignItems": "CENTER",
+          "counterAxisAlignItems": "CENTER"
+        },
+        "children": [
+          {
+            "type": "text",
+            "content": "按钮",
+            "className": "btn-label",
+            "style": {
+              "fontSize": 12,
+              "fontFamily": "Inter",
+              "fontWeight": 600,
+              "color": "#FFFFFF"
+            }
+          }
+        ]
+      }
+    ],
+    "content": [
+      {
+        "type": "frame",
+        "name": "示例 Frame",
+        "className": "page-container",
+        "style": {
+          "x": 0,
+          "y": 0,
+          "width": 400,
+          "height": 320,
+          "fills": ["#F9FAFB"],
+          "layoutMode": "VERTICAL",
+          "itemSpacing": 16,
+          "paddingTop": 24,
+          "paddingBottom": 24,
+          "paddingLeft": 24,
+          "paddingRight": 24
+        },
+        "children": [
+          {
+            "type": "text",
+            "content": "This is a text block.",
+            "className": "title-text",
+            "style": {
+              "fontSize": 24,
+              "color": "#111827"
+            }
+          },
+          {
+            "type": "rectangle",
+            "name": "色块",
+            "className": "color-block",
+            "style": {
+              "width": 120,
+              "height": 80,
+              "fills": ["#10B981"],
+              "borderRadius": 8
+            }
+          },
+          {
+            "type": "component",
+            "ref": "button",
+            "locked": true
+          },
+          {
+            "type": "component",
+            "ref": "button",
+            "overrides": { "content": "提交" },
+            "locked": true
+          }
+        ]
+      }
+    ]
+  }
+}

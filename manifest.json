@@ -1,0 +1,17 @@
+{
+  "name": "MyBricks",
+  "id": "json-to-figma-plugin",
+  "api": "1.0.0",
+  "main": "dist/code.js",
+  "ui": "dist/ui.html",
+  "documentAccess": "dynamic-page",
+  "editorType": ["figma", "dev"],
+  "capabilities": ["inspect"],
+  "relaunchButtons": [
+    { "command": "pasteAndGenerate", "name": "Paste JSON and generate" }
+  ],
+  "networkAccess": {
+    "allowedDomains": ["*"],
+    "reasoning": "Need to fetch images from URLs specified in JSON"
+  }
+}

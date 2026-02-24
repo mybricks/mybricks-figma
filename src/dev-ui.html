@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
+      font-size: 12px;
+      min-width: 300px;
+      min-height: 200px;
+      padding: 12px;
+      background: var(--figma-color-bg, #fff);
+      color: var(--figma-color-text, #333);
+      overflow: auto;
+    }
+    h2 {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 8px;
+      color: var(--figma-color-text-secondary, #666);
+    }
+    .block {
+      margin-bottom: 12px;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+    .selector {
+      color: var(--figma-color-text-secondary, #666);
+      font-weight: 600;
+    }
+    .brace { color: #999; }
+    .refresh {
+      margin-bottom: 12px;
+      padding: 6px 10px;
+      font-size: 11px;
+      cursor: pointer;
+      background: var(--figma-color-bg-tertiary, #eee);
+      border: none;
+      border-radius: 4px;
+      color: var(--figma-color-text, #333);
+    }
+    .refresh:hover { background: var(--figma-color-bg-hover, #e0e0e0); }
+    .empty { color: var(--figma-color-text-secondary, #666); font-style: italic; }
+  </style>
+</head>
+<body>
+  <h2>Class names → CSS</h2>
+  <button type="button" class="refresh" id="refresh">Refresh</button>
+  <div id="list"></div>
+  <script>
+    (function() {
+      var listEl = document.getElementById('list');
+      var refreshBtn = document.getElementById('refresh');
+      function render(list) {
+        if (!list || list.length === 0) {
+          listEl.innerHTML = '<p class="empty">No nodes with className on this page. Paste JSON in design mode first.</p>';
+          return;
+        }
+        listEl.innerHTML = list.map(function(item) {
+          var sel = '.'.concat(escapeHtml(item.className));
+          var css = escapeHtml(item.css);
+          return '<div class="block"><span class="selector">' + sel + '</span> <span class="brace">{</span>\n' + css + '\n<span class="brace">}</span></div>';
+        }).join('');
+      }
+      function escapeHtml(s) {
+        var div = document.createElement('div');
+        div.textContent = s;
+        return div.innerHTML;
+      }
+      function request() {
+        parent.postMessage({ pluginMessage: { type: 'getClassNames' } }, '*');
+      }
+      window.onmessage = function(e) {
+        var msg = e.data && e.data.pluginMessage;
+        if (msg && msg.type === 'classNames') render(msg.list);
+      };
+      refreshBtn.addEventListener('click', request);
+      request();
+    })();
+  </script>
+</body>
+</html>
