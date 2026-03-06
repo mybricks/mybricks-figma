@@ -18,9 +18,22 @@ export function applyLayoutAndSize(
 ): void {
   if (!style) return;
 
-  if (style.layoutMode && style.layoutMode !== 'NONE') {
-    node.layoutMode = style.layoutMode;
+  const useGrid = style.layoutGridColumns != null && style.layoutGridColumns > 0;
+  const layoutMode = useGrid ? 'GRID' : style.layoutMode;
 
+  if (layoutMode && layoutMode !== 'NONE') {
+    // GRID 只能在无子节点时设置，否则 Figma 会报 "Cannot delete occupied row/column"
+    const canSetGrid = !useGrid || node.children.length === 0;
+    if (canSetGrid) {
+      node.layoutMode = layoutMode;
+      if (useGrid && style.layoutGridColumns != null) {
+        node.gridColumnCount = style.layoutGridColumns;
+        node.gridColumnSizes = Array.from({ length: style.layoutGridColumns }, () => ({ type: 'FLEX' as const }));
+      }
+    }
+    if (style.layoutWrap !== undefined && node.layoutMode === 'HORIZONTAL') {
+      node.layoutWrap = style.layoutWrap;
+    }
     if (style.itemSpacing !== undefined) node.itemSpacing = style.itemSpacing;
     if (style.counterAxisSpacing !== undefined) node.counterAxisSpacing = style.counterAxisSpacing;
     if (style.paddingTop !== undefined) node.paddingTop = style.paddingTop;

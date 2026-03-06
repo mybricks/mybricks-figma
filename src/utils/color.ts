@@ -1,10 +1,9 @@
-export function parseColor(color: string): RGB {
+/** 内部用：仅解析为 RGB，不包含透明度。对外统一用 parseColorWithOpacity 以保留透明度。 */
+function parseRgbOnly(color: string): RGB {
   const hex = color.trim();
-
   if (hex.startsWith('rgb')) {
     return parseRgbString(hex);
   }
-
   return hexToRgb(hex);
 }
 
@@ -61,5 +60,5 @@ export function parseColorWithOpacity(color: string): { color: RGB; opacity: num
     };
   }
 
-  return { color: parseColor(hex), opacity: 1 };
+  return { color: parseRgbOnly(hex), opacity: 1 };
 }

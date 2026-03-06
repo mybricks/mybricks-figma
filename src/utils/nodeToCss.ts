@@ -19,14 +19,28 @@ function paintToCss(paint: SolidPaint): string | null {
 }
 
 const lines: string[] = [];
+const cssObj: Record<string, string> = {};
 
 function add(key: string, value: string): void {
-  if (value) lines.push(`  ${key}: ${value};`);
+  if (value) {
+    lines.push(`  ${key}: ${value};`);
+    cssObj[key] = value;
+  }
 }
 
-export function nodeToCss(node: SceneNode): string {
+function beginCssCollect(): void {
   lines.length = 0;
+  for (const k of Object.keys(cssObj)) delete cssObj[k];
+}
 
+/** Returns CSS properties object (key = property name, value = CSS value) for sync styles. */
+export function nodeToCssObject(node: SceneNode): Record<string, string> {
+  beginCssCollect();
+  collectCss(node);
+  return { ...cssObj };
+}
+
+function collectCss(node: SceneNode): void {
   // LayoutMixin: width, height
   if ('width' in node && 'height' in node) {
     const n = node as LayoutMixin;
@@ -64,6 +78,23 @@ export function nodeToCss(node: SceneNode): string {
     const n = node as RectangleNode | FrameNode | ComponentNode;
     if (typeof n.cornerRadius === 'number' && n.cornerRadius > 0) {
       add('border-radius', `${n.cornerRadius}px`);
+    }
+  }
+
+  // Effects (shadow)
+  if ('effects' in node) {
+    const n = node as BlendMixin;
+    const effects = n.effects;
+    if (Array.isArray(effects)) {
+      const shadows = effects
+        .filter((e): e is DropShadowEffect => e.type === 'DROP_SHADOW' && e.visible)
+        .map((e) => {
+          const c = e.color;
+          const color = rgbToCss({ r: c.r, g: c.g, b: c.b }, c.a);
+          const spread = 'spread' in e ? (e as DropShadowEffect).spread ?? 0 : 0;
+          return `${e.offset.x}px ${e.offset.y}px ${e.radius}px ${spread}px ${color}`;
+        });
+      if (shadows.length > 0) add('box-shadow', shadows.join(', '));
     }
   }
 
@@ -117,6 +148,10 @@ export function nodeToCss(node: SceneNode): string {
       add('font-family', family);
     }
   }
+}
 
+export function nodeToCss(node: SceneNode): string {
+  beginCssCollect();
+  collectCss(node);
   return lines.join('\n');
 }

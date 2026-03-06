@@ -1,7 +1,7 @@
 import type { StyleJSON, FillObject, ShadowEffect, BlurEffect } from '../types';
-import { parseColor, parseColorWithOpacity } from './color';
+import { parseColorWithOpacity } from './color';
 
-export function applyBaseStyle(node: SceneNode, style?: StyleJSON): void {
+export function applyBaseStyle(node: SceneNode, style?: StyleJSON, skipResizeForText?: boolean): void {
   if (!style) return;
 
   if (style.x !== undefined) node.x = style.x;
@@ -10,7 +10,8 @@ export function applyBaseStyle(node: SceneNode, style?: StyleJSON): void {
     (node as SceneNode & { rotation: number }).rotation = style.rotation;
   }
 
-  if ('resize' in node) {
+  const isText = node.type === 'TEXT';
+  if ('resize' in node && !(skipResizeForText && isText)) {
     const w = style.width;
     const h = style.height;
     if (w !== undefined && h !== undefined) {
@@ -35,6 +36,34 @@ export function applyBaseStyle(node: SceneNode, style?: StyleJSON): void {
   }
 }
 
+/**
+ * 线性渐变角度 → Figma gradientTransform（2x3）。
+ * 使 0%/100% 色标正好落在图层边界上（渐变线从一边拉到对边，不超出画布）。
+ * Figma 渐变空间：(0,0.5) 为起点、(1,0.5) 为终点；需映射到图层归一化空间 [0,1] 的边界两点。
+ * 中心 (0.5,0.5)，方向 (cos,sin)，半长 D = 0.5/max(|cos|,|sin|)，起点/终点 = 中心 ± D*(cos,sin)。
+ */
+function gradientTransformFromAngle(angleDeg: number): Transform {
+  const rad = (angleDeg * Math.PI) / 180;
+  const cos = Math.cos(rad);
+  const sin = Math.sin(rad);
+  const D = 0.5 / Math.max(Math.abs(cos), Math.abs(sin), 1e-6);
+  const startX = 0.5 - D * cos;
+  const startY = 0.5 - D * sin;
+  const endX = 0.5 + D * cos;
+  const endY = 0.5 + D * sin;
+  const a = endX - startX;
+  const c = endY - startY;
+  return [
+    [a, 0, startX],
+    [c, 0, startY],
+  ];
+}
+
+/** CSS linear-gradient 角度（0deg=上，90deg=右）→ Figma 用的角度（0°=左→右） */
+function cssAngleToFigma(cssAngleDeg: number): number {
+  return (270 + cssAngleDeg) % 360;
+}
+
 export function applyFills(node: GeometryMixin, fills?: (string | FillObject)[]): void {
   if (!fills || fills.length === 0) return;
 
@@ -42,6 +71,20 @@ export function applyFills(node: GeometryMixin, fills?: (string | FillObject)[])
     if (typeof f === 'string') {
       const { color, opacity } = parseColorWithOpacity(f);
       return { type: 'SOLID', color, opacity } as SolidPaint;
+    }
+
+    if (f.type === 'GRADIENT_LINEAR' && f.gradientStops && f.gradientStops.length >= 2) {
+      const gradientStops: { position: number; color: RGBA }[] = f.gradientStops.map((s) => {
+        const { color, opacity: o } = parseColorWithOpacity(s.color);
+        return { position: s.position, color: { ...color, a: o } };
+      });
+      const cssAngle = f.angle ?? 0;
+      const figmaAngle = cssAngleToFigma(cssAngle);
+      return {
+        type: 'GRADIENT_LINEAR',
+        gradientTransform: gradientTransformFromAngle(figmaAngle),
+        gradientStops,
+      } as GradientPaint;
     }
 
     if (f.type === 'SOLID' && f.color) {
@@ -68,8 +111,8 @@ export function applyStrokes(node: GeometryMixin, style?: StyleJSON): void {
   if (!style) return;
 
   if (style.strokeColor) {
-    const color = parseColor(style.strokeColor);
-    node.strokes = [{ type: 'SOLID', color }];
+    const { color, opacity } = parseColorWithOpacity(style.strokeColor);
+    node.strokes = [{ type: 'SOLID', color, opacity }];
   }
 
   if (style.strokeWeight !== undefined) {
@@ -134,9 +177,22 @@ export function applyEffects(node: BlendMixin, style?: StyleJSON): void {
 export function applyAutoLayout(node: FrameNode | ComponentNode, style?: StyleJSON): void {
   if (!style) return;
 
-  if (style.layoutMode && style.layoutMode !== 'NONE') {
-    node.layoutMode = style.layoutMode;
+  const useGrid = style.layoutGridColumns != null && style.layoutGridColumns > 0;
+  const layoutMode = useGrid ? 'GRID' : style.layoutMode;
 
+  if (layoutMode && layoutMode !== 'NONE') {
+    // GRID 只能在无子节点时设置，否则 Figma 会报 "Cannot delete occupied row/column"
+    const canSetGrid = !useGrid || node.children.length === 0;
+    if (canSetGrid) {
+      node.layoutMode = layoutMode;
+      if (useGrid && style.layoutGridColumns != null) {
+        node.gridColumnCount = style.layoutGridColumns;
+        node.gridColumnSizes = Array.from({ length: style.layoutGridColumns }, () => ({ type: 'FLEX' as const }));
+      }
+    }
+    if (style.layoutWrap !== undefined && node.layoutMode === 'HORIZONTAL') {
+      node.layoutWrap = style.layoutWrap;
+    }
     if (style.itemSpacing !== undefined) node.itemSpacing = style.itemSpacing;
     if (style.counterAxisSpacing !== undefined) node.counterAxisSpacing = style.counterAxisSpacing;
     if (style.paddingTop !== undefined) node.paddingTop = style.paddingTop;

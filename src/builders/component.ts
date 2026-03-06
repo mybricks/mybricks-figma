@@ -2,11 +2,13 @@ import type { NodeJSON, ComponentDefJSON, ComponentDefMap } from '../types';
 import { buildFrame } from './frame';
 import { buildChildren } from './index';
 import { loadFont } from '../utils/font';
+import { nodeToCssObject } from '../utils/nodeToCss';
 
 export async function buildComponentInline(
   json: NodeJSON,
   parent: BaseNode & ChildrenMixin,
-  defMap: ComponentDefMap
+  defMap: ComponentDefMap,
+  errors?: string[]
 ): Promise<FrameNode> {
   const def = defMap.get(json.ref!);
   if (!def) {
@@ -20,11 +22,14 @@ export async function buildComponentInline(
     style: def.style,
     children: def.children,
   };
-  const frame = await buildFrame(frameJson, parent, defMap);
+  const frame = await buildFrame(frameJson, parent, defMap, errors);
 
   frame.name = json.className ?? json.name ?? `${json.ref} Instance`;
   const className = json.className ?? def.className;
   if (className) frame.setPluginData('className', className);
+  if (json.selectors && Array.isArray(json.selectors) && json.selectors.length > 0) {
+    frame.setPluginData('selectors', JSON.stringify(json.selectors));
+  }
 
   if (json.style) {
     if (json.style.x !== undefined) frame.x = json.style.x;
@@ -48,6 +53,15 @@ export async function buildComponentInline(
 
   if (json.locked === true) {
     frame.locked = true;
+  }
+
+  if (className) {
+    try {
+      const snapshot = nodeToCssObject(frame);
+      frame.setPluginData('originalStyle', JSON.stringify(snapshot));
+    } catch (_e) {
+      // ignore
+    }
   }
 
   return frame;

@@ -45,6 +45,8 @@ export interface StyleJSON {
   color?: string;
   fontSize?: number;
   fontFamily?: string;
+  /** 完整 font-family 栈（DOM 顺序），供插件与 listAvailableFontsAsync 匹配 */
+  fontFamilyStack?: string[];
   fontWeight?: number;
   fontStyle?: 'normal' | 'italic';
   textAlignHorizontal?: 'LEFT' | 'CENTER' | 'RIGHT' | 'JUSTIFIED';
@@ -54,9 +56,12 @@ export interface StyleJSON {
   textDecoration?: 'NONE' | 'UNDERLINE' | 'STRIKETHROUGH';
 
   // Auto-layout properties
-  layoutMode?: 'NONE' | 'HORIZONTAL' | 'VERTICAL';
+  layoutMode?: 'NONE' | 'HORIZONTAL' | 'VERTICAL' | 'GRID';
+  layoutWrap?: 'NO_WRAP' | 'WRAP';
   itemSpacing?: number;
   counterAxisSpacing?: number;
+  /** 网格列数，设置后使用 layoutMode='GRID' 并生成等分 FLEX 列 */
+  layoutGridColumns?: number;
   paddingTop?: number;
   paddingRight?: number;
   paddingBottom?: number;
@@ -80,7 +85,10 @@ export interface FillObject {
   type: 'SOLID' | 'GRADIENT_LINEAR' | 'GRADIENT_RADIAL';
   color?: string;
   opacity?: number;
+  /** 线性渐变色标 */
   gradientStops?: { position: number; color: string }[];
+  /** 线性渐变角度（度），0=上→下，90=左→右 */
+  angle?: number;
 }
 
 export interface VectorPathJSON {
@@ -92,6 +100,8 @@ export interface NodeJSON {
   type: NodeType;
   name?: string;
   className?: string;
+  /** Selector path from root, e.g. [".column .listItem .val"]. Written at build time, read back when syncing styles. */
+  selectors?: string[];
   content?: string;
   ref?: string;
   overrides?: Record<string, string>;
@@ -104,13 +114,22 @@ export interface ComponentDefJSON {
   type: string;
   name?: string;
   className?: string;
+  selectors?: string[];
   style?: StyleJSON;
   children?: NodeJSON[];
+}
+
+export interface DefaultFontJSON {
+  fontFamily: string;
+  fontFamilyStack?: string[];
+  fontWeight?: number;
+  fontStyle?: 'normal' | 'italic';
 }
 
 export interface PageJSON {
   name?: string;
   'component-def'?: ComponentDefJSON[];
+  defaultFont?: DefaultFontJSON;
   content: NodeJSON[];
 }
 

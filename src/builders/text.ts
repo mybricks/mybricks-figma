@@ -1,27 +1,30 @@
-import type { NodeJSON } from '../types';
+import type { NodeJSON, DefaultFontJSON } from '../types';
 import { applyBaseStyle, applyEffects } from '../utils/style';
 import { parseColorWithOpacity } from '../utils/color';
 import { loadFont } from '../utils/font';
 
 export async function buildText(
   json: NodeJSON,
-  parent: BaseNode & ChildrenMixin
+  parent: BaseNode & ChildrenMixin,
+  defaultFont?: DefaultFontJSON
 ): Promise<TextNode> {
   const text = figma.createText();
   text.name = json.className ?? json.name ?? 'Text';
 
   parent.appendChild(text);
 
-  const fontName = await loadFont(
-    json.style?.fontFamily,
-    json.style?.fontWeight,
-    json.style?.fontStyle === 'italic'
-  );
+  const family = json.style?.fontFamily ?? defaultFont?.fontFamily;
+  const fontFamilyStack = json.style?.fontFamilyStack ?? defaultFont?.fontFamilyStack;
+  const rawWeight = json.style?.fontWeight ?? defaultFont?.fontWeight;
+  // 字重按每个文本节点单独设置，通过加载对应 style 的字体并设置 fontName 实现
+  const weight = typeof rawWeight === 'number' && rawWeight >= 1 && rawWeight <= 1000 ? rawWeight : undefined;
+  const italic = json.style?.fontStyle === 'italic' || defaultFont?.fontStyle === 'italic';
+  const fontName = await loadFont(family, weight, italic, fontFamilyStack);
   text.fontName = fontName;
 
   text.characters = json.content ?? '';
 
-  applyBaseStyle(text, json.style);
+  applyBaseStyle(text, json.style, true);
 
   if (json.style?.color) {
     const { color, opacity } = parseColorWithOpacity(json.style.color);

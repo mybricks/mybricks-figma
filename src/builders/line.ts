@@ -15,7 +15,7 @@ export function buildLine(
   applyEffects(line, json.style);
 
   if (!json.style?.strokeColor) {
-    line.strokes = [{ type: 'SOLID', color: { r: 0, g: 0, b: 0 } }];
+    line.strokes = [{ type: 'SOLID', color: { r: 0, g: 0, b: 0 }, opacity: 1 }];
   }
 
   return line;

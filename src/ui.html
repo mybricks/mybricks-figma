@@ -102,6 +102,52 @@
     }
     .status.error { color: #f24822; }
     .status.success { color: #1bc47d; }
+    .error-list-wrap {
+      margin-top: 12px;
+      padding-top: 12px;
+      border-top: 1px solid #eee;
+      display: none;
+    }
+    .error-list-wrap.visible { display: block; }
+    .error-list-header {
+      font-size: 11px;
+      font-weight: 600;
+      color: #f24822;
+      margin-bottom: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    .error-list-wrap .btn-copy {
+      font-size: 11px;
+      padding: 4px 8px;
+      background: #f5f5f5;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      cursor: pointer;
+      color: #333;
+    }
+    .error-list-wrap .btn-copy:hover { background: #eee; }
+    .error-list {
+      max-height: 120px;
+      overflow-y: auto;
+      font-size: 11px;
+      font-family: 'SF Mono', Menlo, Consolas, monospace;
+      color: #f24822;
+      background: #fff5f5;
+      border: 1px solid #ffd6d6;
+      border-radius: 6px;
+      padding: 8px;
+      list-style: none;
+    }
+    .error-list li {
+      padding: 4px 0;
+      border-bottom: 1px solid #ffd6d6;
+      word-break: break-all;
+      white-space: pre-wrap;
+    }
+    .error-list li:last-child { border-bottom: none; }
     .dev-section {
       margin-top: 16px;
       padding-top: 16px;
@@ -136,6 +182,27 @@
     }
     .dev-section .refresh:hover { background: #e0e0e0; }
     .dev-section .empty { color: #666; font-style: italic; }
+    .dev-section-hint {
+      font-size: 12px;
+      color: #666;
+      margin-bottom: 8px;
+      line-height: 1.4;
+    }
+    .sync-styles-out {
+      max-height: 200px;
+      overflow: auto;
+      white-space: pre-wrap;
+      word-break: break-all;
+      font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
+      font-size: 11px;
+      background: #f5f5f5;
+      border: 1px solid #eee;
+      border-radius: 6px;
+      padding: 8px;
+      margin-top: 8px;
+    }
+    .sync-styles-out.empty { color: #666; font-style: italic; }
+    .sync-copy { font-size: 11px; padding: 4px 8px; }
   </style>
 </head>
 <body>
@@ -153,10 +220,24 @@
     <button class="btn-generate" id="generate">Generate</button>
     <div class="status" id="status"></div>
   </div>
-  <div class="dev-section">
+  <div class="error-list-wrap" id="errorListWrap">
+    <div class="error-list-header">
+      <span>Errors (skipped nodes)</span>
+      <button type="button" class="btn-copy" id="copyErrors">Copy</button>
+    </div>
+    <ul class="error-list" id="errorList"></ul>
+  </div>
+  <div class="dev-section" id="classNamesCssSection" style="display: none;">
     <h2>Class names → CSS</h2>
     <button type="button" class="refresh" id="refresh">Refresh</button>
     <div id="list"></div>
+  </div>
+  <div class="dev-section">
+    <h2>同步样式</h2>
+    <p class="dev-section-hint">选中画布中的一个 Frame，点击按钮获取该 Frame 及其子节点的样式（className → CSS 属性），含父子关系便于从 Figma 同步回修改。</p>
+    <button type="button" class="refresh" id="syncStylesBtn">同步样式</button>
+    <div id="syncStylesOut" class="sync-styles-out"></div>
+    <button type="button" class="btn-copy sync-copy" id="copySyncStyles" style="display:none; margin-top: 8px;">复制 JSON</button>
   </div>
 
   <script>
@@ -187,6 +268,7 @@
       }
       generateBtn.disabled = true;
       setStatus('', '');
+      showErrors([]);
       parent.postMessage({ pluginMessage: { type: 'clipboard-data', data: t } }, '*');
     }
 
@@ -208,6 +290,31 @@
       }
     });
 
+    const errorListWrap = document.getElementById('errorListWrap');
+    const errorListEl = document.getElementById('errorList');
+    const copyErrorsBtn = document.getElementById('copyErrors');
+    var lastErrors = [];
+
+    function showErrors(errors) {
+      lastErrors = errors || [];
+      if (lastErrors.length === 0) {
+        errorListWrap.classList.remove('visible');
+        errorListEl.innerHTML = '';
+        return;
+      }
+      errorListWrap.classList.add('visible');
+      errorListEl.innerHTML = lastErrors.map(function (e) {
+        return '<li>' + String(e).replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;') + '</li>';
+      }).join('');
+    }
+    copyErrorsBtn.addEventListener('click', function () {
+      if (lastErrors.length === 0) return;
+      const text = lastErrors.join('\n');
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(function () { copyErrorsBtn.textContent = 'Copied'; setTimeout(function () { copyErrorsBtn.textContent = 'Copy'; }, 1500); });
+      }
+    });
+
     const listEl = document.getElementById('list');
     const refreshBtn = document.getElementById('refresh');
     function renderClassNames(list) {
@@ -226,18 +333,103 @@
     }
     refreshBtn.addEventListener('click', requestClassNames);
 
+    var lastSyncStylesJson = '';
+    const syncStylesBtn = document.getElementById('syncStylesBtn');
+    const syncStylesOut = document.getElementById('syncStylesOut');
+    const copySyncStylesBtn = document.getElementById('copySyncStyles');
+    function requestSyncStyles() {
+      syncStylesOut.textContent = '获取中…';
+      syncStylesOut.classList.remove('empty');
+      copySyncStylesBtn.style.display = 'none';
+      parent.postMessage({ pluginMessage: { type: 'getSyncStyles' } }, '*');
+    }
+    function renderSyncStyles(list) {
+      if (!list || !Array.isArray(list) || list.length === 0) {
+        syncStylesOut.textContent = '请先选中一个 Frame 或 Group（或其中的任意节点），且其下至少有一个带 className 的节点。';
+        syncStylesOut.classList.add('empty');
+        copySyncStylesBtn.style.display = 'none';
+        return;
+      }
+      var hasChanges = list.some(function (item) { return item.value && Object.keys(item.value).length > 0; });
+      lastSyncStylesJson = JSON.stringify(list, null, 2);
+      if (!hasChanges) {
+        var debugParts = [];
+        list.forEach(function (item, i) {
+          var sel = (item.selectors && item.selectors[0]) || ('#' + i);
+          debugParts.push('--- ' + sel + ' ---');
+          if (item.debug) {
+            debugParts.push('导入时快照 (originalStyle):');
+            debugParts.push(JSON.stringify(item.debug.original, null, 2));
+            debugParts.push('当前样式 (currentStyle):');
+            debugParts.push(JSON.stringify(item.debug.current, null, 2));
+            if (Object.keys(item.debug.original).length === 0) {
+              debugParts.push('(提示: originalStyle 为空，可能是该节点在加入 originalStyle 功能之前导入的，或导入时未正确写入。可重新从 JSON 生成一次再改样式。)');
+            }
+          } else {
+            debugParts.push(JSON.stringify(item, null, 2));
+          }
+        });
+        syncStylesOut.textContent = '未检测到样式变更（可同步属性：字体、背景、边框、阴影、内间距等）。\n\n以下为当前匹配到的节点及 original vs current 便于对比：\n\n' + debugParts.join('\n\n');
+      } else {
+        syncStylesOut.textContent = lastSyncStylesJson;
+      }
+      syncStylesOut.classList.remove('empty');
+      copySyncStylesBtn.style.display = 'inline-block';
+    }
+    syncStylesBtn.addEventListener('click', requestSyncStyles);
+    function copyToClipboard(text, btn, doneLabel, failLabel) {
+      function showDone() { btn.textContent = doneLabel; setTimeout(function () { btn.textContent = '复制 JSON'; }, 1500); }
+      function showFail() { btn.textContent = failLabel; setTimeout(function () { btn.textContent = '复制 JSON'; }, 2000); }
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(showDone).catch(function () {
+          if (copyByExecCommand(text)) showDone();
+          else showFail();
+        });
+      } else {
+        if (copyByExecCommand(text)) showDone();
+        else showFail();
+      }
+    }
+    function copyByExecCommand(text) {
+      var ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.left = '-9999px';
+      ta.style.top = '0';
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.select();
+      try {
+        var ok = document.execCommand('copy');
+        document.body.removeChild(ta);
+        return ok;
+      } catch (e) {
+        document.body.removeChild(ta);
+        return false;
+      }
+    }
+    copySyncStylesBtn.addEventListener('click', function () {
+      if (!lastSyncStylesJson) return;
+      copyToClipboard(lastSyncStylesJson, copySyncStylesBtn, '已复制', '复制失败，请手动选择上方内容复制');
+    });
+
     window.onmessage = (event) => {
       const msg = event.data && event.data.pluginMessage;
       if (!msg) return;
       if (msg.type === 'done') {
-        setStatus('', '');
+        setStatus(msg.message || '', msg.errors && msg.errors.length ? 'error' : 'success');
         generateBtn.disabled = false;
+        if (msg.errors && msg.errors.length) showErrors(msg.errors);
+        else showErrors([]);
         requestClassNames();
       } else if (msg.type === 'error') {
         setStatus(msg.error, 'error');
+        showErrors([msg.error]);
         generateBtn.disabled = false;
       } else if (msg.type === 'classNames') {
         renderClassNames(msg.list);
+      } else if (msg.type === 'syncStyles') {
+        renderSyncStyles(msg.list);
       }
     };
 

@@ -1,10 +1,12 @@
-import type { NodeJSON, ComponentDefMap } from '../types';
+import type { NodeJSON, ComponentDefMap, DefaultFontJSON } from '../types';
 import { buildChildren } from './index';
 
 export async function buildGroup(
   json: NodeJSON,
   parent: BaseNode & ChildrenMixin,
-  defMap: ComponentDefMap
+  defMap: ComponentDefMap,
+  errors?: string[],
+  defaultFont?: DefaultFontJSON
 ): Promise<GroupNode> {
   const tempFrame = figma.createFrame();
   tempFrame.name = '__temp_group_container__';
@@ -12,7 +14,7 @@ export async function buildGroup(
   parent.appendChild(tempFrame);
 
   if (json.children && json.children.length > 0) {
-    await buildChildren(json.children, tempFrame, defMap);
+    await buildChildren(json.children, tempFrame, defMap, errors, defaultFont);
   }
 
   const childNodes = [...tempFrame.children];
