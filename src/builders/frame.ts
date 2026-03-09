@@ -18,6 +18,11 @@ export async function buildFrame(
     frame.fills = [];
   }
 
+  // overflow: visible → 不裁切内容（Figma 默认 clipsContent = true）
+  if (json.style?.clipsContent === false) {
+    frame.clipsContent = false;
+  }
+
   applyFills(frame, json.style?.fills);
   applyStrokes(frame, json.style);
   applyBorderRadius(frame, json.style);

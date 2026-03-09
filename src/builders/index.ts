@@ -77,7 +77,8 @@ export async function buildChildren(
 ): Promise<SceneNode[]> {
   const nodes: SceneNode[] = [];
   const errs = errors ?? [];
-  for (const child of children) {
+  for (let i = 0; i < children.length; i++) {
+    const child = children[i];
     const lengthBefore = parent.children.length;
     try {
       const node = await buildNode(child, parent, defMap, errs, defaultFont);

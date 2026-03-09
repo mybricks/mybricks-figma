@@ -58,6 +58,15 @@ export function applyLayoutAndSize(
     }
   }
 
+  // 无 layoutMode 的 frame 作为 auto-layout 父节点的子节点时，Figma 默认为 HUG，空 frame 会变成 0x0 不可见。
+  // 有明确 width/height 时设为 FIXED，保证尺寸保留（如 bannerArea 等空容器能正确显示）。
+  if (style.width !== undefined) {
+    node.layoutSizingHorizontal = style.layoutSizingHorizontal ?? 'FIXED';
+  }
+  if (style.height !== undefined) {
+    node.layoutSizingVertical = style.layoutSizingVertical ?? 'FIXED';
+  }
+
   const w = style.width;
   const h = style.height;
   if (w !== undefined && h !== undefined) {

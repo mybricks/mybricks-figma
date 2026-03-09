@@ -64,13 +64,67 @@ function cssAngleToFigma(cssAngleDeg: number): number {
   return (270 + cssAngleDeg) % 360;
 }
 
+/** data URL 或纯 base64 转为 Uint8Array，供 figma.createImage 使用 */
+function dataUrlToBytes(content: string): Uint8Array | null {
+  if (!content || typeof content !== 'string') return null;
+  let base64: string;
+  const dataUrlMatch = content.match(/^data:image\/[^;]+;base64\s*,/i);
+  if (dataUrlMatch) {
+    base64 = content.slice(dataUrlMatch[0].length);
+  } else {
+    base64 = content;
+  }
+  base64 = base64.replace(/\s/g, '');
+  if (!base64.length) return null;
+
+  // Figma 沙盒环境无 atob，手动实现 base64 解码
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+  const lookup = new Uint8Array(256);
+  for (let i = 0; i < chars.length; i++) lookup[chars.charCodeAt(i)] = i;
+
+  const n = base64.length;
+  let pad = 0;
+  if (n > 0 && base64[n - 1] === '=') pad++;
+  if (n > 1 && base64[n - 2] === '=') pad++;
+  const bytes = new Uint8Array((n * 3) / 4 - pad);
+  let p = 0;
+  for (let i = 0; i < n; i += 4) {
+    const a = lookup[base64.charCodeAt(i)];
+    const b = lookup[base64.charCodeAt(i + 1)];
+    const c = lookup[base64.charCodeAt(i + 2)];
+    const d = lookup[base64.charCodeAt(i + 3)];
+    bytes[p++] = (a << 2) | (b >> 4);
+    if (p < bytes.length) bytes[p++] = ((b & 0xf) << 4) | (c >> 2);
+    if (p < bytes.length) bytes[p++] = ((c & 0x3) << 6) | d;
+  }
+  return bytes;
+}
+
 export function applyFills(node: GeometryMixin, fills?: (string | FillObject)[]): void {
   if (!fills || fills.length === 0) return;
 
-  const paintArray: Paint[] = fills.map((f) => {
+  const paintArray: Paint[] = [];
+  for (const f of fills) {
     if (typeof f === 'string') {
       const { color, opacity } = parseColorWithOpacity(f);
-      return { type: 'SOLID', color, opacity } as SolidPaint;
+      paintArray.push({ type: 'SOLID', color, opacity } as SolidPaint);
+      continue;
+    }
+
+    if (f.type === 'IMAGE' && (f.content || f.url)) {
+      const content = f.content;
+      if (content) {
+        const bytes = dataUrlToBytes(content);
+        if (bytes && bytes.length > 0) {
+          try {
+            const image = figma.createImage(bytes);
+            paintArray.push({ type: 'IMAGE', imageHash: image.hash, scaleMode: 'FILL' } as ImagePaint);
+          } catch (e) {
+            console.warn('[image fill] createImage 失败', (e as Error)?.message);
+          }
+        }
+      }
+      continue;
     }
 
     if (f.type === 'GRADIENT_LINEAR' && f.gradientStops && f.gradientStops.length >= 2) {
@@ -80,31 +134,36 @@ export function applyFills(node: GeometryMixin, fills?: (string | FillObject)[])
       });
       const cssAngle = f.angle ?? 0;
       const figmaAngle = cssAngleToFigma(cssAngle);
-      return {
+      paintArray.push({
         type: 'GRADIENT_LINEAR',
         gradientTransform: gradientTransformFromAngle(figmaAngle),
         gradientStops,
-      } as GradientPaint;
+      } as GradientPaint);
+      continue;
     }
 
     if (f.type === 'SOLID' && f.color) {
       const { color, opacity: parsedOpacity } = parseColorWithOpacity(f.color);
-      return {
+      paintArray.push({
         type: 'SOLID',
         color,
         opacity: f.opacity ?? parsedOpacity,
-      } as SolidPaint;
+      } as SolidPaint);
+      continue;
     }
 
     if (f.color) {
       const { color, opacity: parsedOpacity } = parseColorWithOpacity(f.color);
-      return { type: 'SOLID', color, opacity: f.opacity ?? parsedOpacity } as SolidPaint;
+      paintArray.push({ type: 'SOLID', color, opacity: f.opacity ?? parsedOpacity } as SolidPaint);
+      continue;
     }
 
-    return { type: 'SOLID', color: { r: 0, g: 0, b: 0 }, opacity: 1 } as SolidPaint;
-  });
+    paintArray.push({ type: 'SOLID', color: { r: 0, g: 0, b: 0 }, opacity: 1 } as SolidPaint);
+  }
 
-  node.fills = paintArray;
+  if (paintArray.length > 0) {
+    node.fills = paintArray;
+  }
 }
 
 export function applyStrokes(node: GeometryMixin, style?: StyleJSON): void {

@@ -31,6 +31,7 @@ export interface StyleJSON {
 
   fills?: (string | FillObject)[];
   opacity?: number;
+  clipsContent?: boolean;
 
   strokeColor?: string;
   strokeWeight?: number;
@@ -82,13 +83,17 @@ export interface StyleJSON {
 }
 
 export interface FillObject {
-  type: 'SOLID' | 'GRADIENT_LINEAR' | 'GRADIENT_RADIAL';
+  type: 'SOLID' | 'GRADIENT_LINEAR' | 'GRADIENT_RADIAL' | 'IMAGE';
   color?: string;
   opacity?: number;
   /** 线性渐变色标 */
   gradientStops?: { position: number; color: string }[];
   /** 线性渐变角度（度），0=上→下，90=左→右 */
   angle?: number;
+  /** 图片 fill：data URL（data:image/...;base64,...）或纯 base64，由 dom-to-json 内联后传入 */
+  content?: string;
+  /** 图片 URL（当 content 未内联时可选，插件尝试拉取） */
+  url?: string;
 }
 
 export interface VectorPathJSON {

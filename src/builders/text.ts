@@ -35,7 +35,7 @@ export async function buildText(
   }
   applyEffects(text, json.style);
 
-  if (json.style?.fontSize !== undefined) text.fontSize = json.style.fontSize;
+  if (json.style?.fontSize !== undefined && json.style.fontSize >= 1) text.fontSize = json.style.fontSize;
 
   if (json.style?.textAlignHorizontal !== undefined) {
     text.textAlignHorizontal = json.style.textAlignHorizontal;
