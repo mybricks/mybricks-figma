@@ -72,6 +72,9 @@ export interface StyleJSON {
   layoutSizingHorizontal?: 'FIXED' | 'HUG' | 'FILL';
   layoutSizingVertical?: 'FIXED' | 'HUG' | 'FILL';
 
+  // CSS position: absolute / fixed 的元素在 Figma 中需脱离 Auto Layout 流式排布
+  positionType?: 'absolute';
+
   // Constraints
   constraints?: {
     horizontal?: 'MIN' | 'CENTER' | 'MAX' | 'STRETCH' | 'SCALE';

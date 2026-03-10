@@ -77,6 +77,11 @@ export function applyLayoutAndSize(
     node.resize(node.width, h);
   }
 
+  // position: absolute/fixed → 脱离 Auto Layout 流式排布，保留 x/y（等价 CSS position: absolute）
+  if (style.positionType === 'absolute' && 'layoutPositioning' in node) {
+    (node as any).layoutPositioning = 'ABSOLUTE';
+  }
+
   if (style.x !== undefined) node.x = style.x;
   if (style.y !== undefined) node.y = style.y;
   if (style.rotation !== undefined) node.rotation = style.rotation;
