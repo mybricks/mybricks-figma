@@ -2,7 +2,7 @@ import type { RootJSON, NodeJSON, NodeType } from './types';
 
 const VALID_NODE_TYPES: NodeType[] = [
   'frame', 'group', 'text', 'image', 'rectangle',
-  'ellipse', 'line', 'vector', 'component',
+  'ellipse', 'line', 'vector', 'svg', 'component',
 ];
 
 export function parseJSON(raw: string): RootJSON {

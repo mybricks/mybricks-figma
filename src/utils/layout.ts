@@ -78,8 +78,12 @@ export function applyLayoutAndSize(
   }
 
   // position: absolute/fixed → 脱离 Auto Layout 流式排布，保留 x/y（等价 CSS position: absolute）
+  // Figma 要求父节点 layoutMode !== NONE 才能设置 ABSOLUTE，否则会报错
   if (style.positionType === 'absolute' && 'layoutPositioning' in node) {
-    (node as any).layoutPositioning = 'ABSOLUTE';
+    const parentNode = (node as any).parent;
+    if (parentNode && 'layoutMode' in parentNode && parentNode.layoutMode !== 'NONE') {
+      (node as any).layoutPositioning = 'ABSOLUTE';
+    }
   }
 
   if (style.x !== undefined) node.x = style.x;

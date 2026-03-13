@@ -24,7 +24,34 @@ export async function buildText(
 
   text.characters = json.content ?? '';
 
+  const rawWidth = json.style?.width;
+  const rawHeight = json.style?.height;
+  // 对文本宽度向上取整，避免浮点误差（如 83.9999 → 84）导致 Figma 认为文字超出宽度而换行
+  const textWidth = rawWidth !== undefined ? Math.ceil(rawWidth) : undefined;
+  // 生产端标记：DOM 里该文字是单行（height < fontSize * 2）
+  const singleLine = (json.style as any)?.singleLine === true;
+
+  console.log('[buildText] content:', json.content,
+    '| rawWidth:', rawWidth, '→ textWidth:', textWidth,
+    '| rawHeight:', rawHeight,
+    '| fontSize:', json.style?.fontSize,
+    '| singleLine:', singleLine,
+    '| textAutoResize before:', text.textAutoResize,
+  );
+
   applyBaseStyle(text, json.style, true);
+
+  if (textWidth !== undefined && textWidth >= 1) {
+    text.resize(textWidth, text.height);
+    if (singleLine) {
+      // DOM 里是单行 → 宽高都跟内容走，Figma 不折行
+      text.textAutoResize = 'WIDTH_AND_HEIGHT';
+    } else {
+      // DOM 里已经是多行 → 固定宽度，高度随内容自动撑开
+      text.textAutoResize = 'HEIGHT';
+    }
+    console.log('[buildText] after resize | textAutoResize:', text.textAutoResize, '| actual node size:', text.width, 'x', text.height, '| content:', json.content);
+  }
 
   if (json.style?.color) {
     const { color, opacity } = parseColorWithOpacity(json.style.color);

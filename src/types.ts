@@ -7,6 +7,7 @@ export type NodeType =
   | 'ellipse'
   | 'line'
   | 'vector'
+  | 'svg'
   | 'component';
 
 export interface ShadowEffect {

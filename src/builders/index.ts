@@ -8,6 +8,7 @@ import { buildText } from './text';
 import { buildImage } from './image';
 import { buildGroup } from './group';
 import { buildComponentInline } from './component';
+import { buildSvg } from './svg';
 import { nodeToCssObject } from '../utils/nodeToCss';
 
 export async function buildNode(
@@ -36,6 +37,9 @@ export async function buildNode(
       break;
     case 'text':
       node = await buildText(json, parent, defaultFont);
+      break;
+    case 'svg':
+      node = await buildSvg(json, parent);
       break;
     case 'image':
       node = await buildImage(json, parent);

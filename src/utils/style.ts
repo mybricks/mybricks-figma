@@ -21,6 +21,11 @@ export function applyBaseStyle(node: SceneNode, style?: StyleJSON, skipResizeFor
     } else if (h !== undefined) {
       (node as GeometryMixin & LayoutMixin).resize((node as any).width ?? 100, h);
     }
+    if (isText) {
+      console.log('[applyBaseStyle] TEXT was resized! w:', style.width, 'h:', style.height, 'textAutoResize after:', (node as any).textAutoResize);
+    }
+  } else if (isText) {
+    console.log('[applyBaseStyle] TEXT skip resize (skipResizeForText=', skipResizeForText, ') textAutoResize:', (node as any).textAutoResize, '| w:', style.width, 'h:', style.height);
   }
 
   if (style.opacity !== undefined && 'opacity' in node) {
