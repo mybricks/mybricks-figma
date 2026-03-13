@@ -105,7 +105,7 @@ function dataUrlToBytes(content: string): Uint8Array | null {
   return bytes;
 }
 
-export function applyFills(node: GeometryMixin, fills?: (string | FillObject)[]): void {
+export async function applyFills(node: GeometryMixin, fills?: (string | FillObject)[]): Promise<void> {
   if (!fills || fills.length === 0) return;
 
   const paintArray: Paint[] = [];
@@ -117,9 +117,8 @@ export function applyFills(node: GeometryMixin, fills?: (string | FillObject)[])
     }
 
     if (f.type === 'IMAGE' && (f.content || f.url)) {
-      const content = f.content;
-      if (content) {
-        const bytes = dataUrlToBytes(content);
+      if (f.content) {
+        const bytes = dataUrlToBytes(f.content);
         if (bytes && bytes.length > 0) {
           try {
             const image = figma.createImage(bytes);
@@ -127,6 +126,13 @@ export function applyFills(node: GeometryMixin, fills?: (string | FillObject)[])
           } catch (e) {
             console.warn('[image fill] createImage 失败', (e as Error)?.message);
           }
+        }
+      } else if (f.url) {
+        try {
+          const image = await figma.createImageAsync(f.url);
+          paintArray.push({ type: 'IMAGE', imageHash: image.hash, scaleMode: 'FILL' } as ImagePaint);
+        } catch (e) {
+          console.warn('[image fill] createImageAsync url 失败', (e as Error)?.message);
         }
       }
       continue;

@@ -24,7 +24,7 @@ export async function buildNode(
       node = await buildFrame(json, parent, defMap, errors, defaultFont);
       break;
     case 'rectangle':
-      node = buildRectangle(json, parent);
+      node = await buildRectangle(json, parent);
       break;
     case 'ellipse':
       node = await buildEllipse(json, parent);
@@ -33,7 +33,7 @@ export async function buildNode(
       node = buildLine(json, parent);
       break;
     case 'vector':
-      node = buildVector(json, parent);
+      node = await buildVector(json, parent);
       break;
     case 'text':
       node = await buildText(json, parent, defaultFont);

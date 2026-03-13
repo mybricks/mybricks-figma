@@ -29,8 +29,7 @@ export async function buildText(
   // 对文本宽度向上取整，避免浮点误差（如 83.9999 → 84）导致 Figma 认为文字超出宽度而换行
   const textWidth = rawWidth !== undefined ? Math.ceil(rawWidth) : undefined;
   // 生产端标记：DOM 里该文字是单行（height <= lineHeight * 1.2），或未设置（undefined）时兜底按单行处理
-  // 保留原始值（true/false/undefined），不强转为 boolean，使 undefined 时能正确走 WIDTH_AND_HEIGHT 兜底
-  const singleLine = (json.style as any)?.singleLine;
+  const singleLine = (json.style as any)?.singleLine === true;
 
   console.log('[buildText] content:', json.content,
     '| rawWidth:', rawWidth, '→ textWidth:', textWidth,
@@ -50,11 +49,6 @@ export async function buildText(
     } else {
       // DOM 里已经是多行 → 固定宽度，高度随内容自动撑开
       text.textAutoResize = 'HEIGHT';
-    }
-    // 若有垂直对齐要求（如 input placeholder 垂直居中），需固定高度才能生效
-    if (json.style?.textAlignVertical !== undefined && rawHeight !== undefined && rawHeight >= 1) {
-      text.resize(textWidth, Math.ceil(rawHeight));
-      text.textAutoResize = 'NONE';
     }
     console.log('[buildText] after resize | textAutoResize:', text.textAutoResize, '| actual node size:', text.width, 'x', text.height, '| content:', json.content);
   }

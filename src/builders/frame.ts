@@ -23,7 +23,7 @@ export async function buildFrame(
     frame.clipsContent = false;
   }
 
-  applyFills(frame, json.style?.fills);
+  await applyFills(frame, json.style?.fills);
   applyStrokes(frame, json.style);
   applyBorderRadius(frame, json.style);
   applyEffects(frame, json.style);

@@ -12,14 +12,24 @@ export async function buildSvg(
 
   parent.appendChild(frame);
 
-  if (json.style?.x !== undefined) frame.x = json.style.x;
-  if (json.style?.y !== undefined) frame.y = json.style.y;
-
   const w = json.style?.width;
   const h = json.style?.height;
   if (w !== undefined && w >= 1 && h !== undefined && h >= 1) {
     frame.resize(Math.ceil(w), Math.ceil(h));
   }
+
+  // 当父节点是 Auto Layout 时，SVG 子节点的 x/y 会被 Figma 忽略（Auto Layout 自动排布），
+  // 需要：① 设为 FIXED 尺寸避免收缩，② 设为 ABSOLUTE 定位以保留 x/y 坐标。
+  const parentNode = frame.parent as any;
+  const parentIsAutoLayout = parentNode && 'layoutMode' in parentNode && parentNode.layoutMode !== 'NONE';
+  if (parentIsAutoLayout) {
+    frame.layoutSizingHorizontal = 'FIXED';
+    frame.layoutSizingVertical = 'FIXED';
+    (frame as any).layoutPositioning = 'ABSOLUTE';
+  }
+
+  if (json.style?.x !== undefined) frame.x = json.style.x;
+  if (json.style?.y !== undefined) frame.y = json.style.y;
 
   return frame;
 }
