@@ -1,5 +1,5 @@
 import type { NodeJSON } from '../types';
-import { applyBaseStyle, applyEffects } from '../utils/style';
+import { applyBaseStyle, applyEffects, applyBorderRadius } from '../utils/style';
 
 export async function buildImage(
   json: NodeJSON,
@@ -29,6 +29,7 @@ export async function buildImage(
   }
 
   applyBaseStyle(rect, json.style);
+  applyBorderRadius(rect, json.style);
   applyEffects(rect, json.style);
 
   return rect;
