@@ -55,9 +55,9 @@ function collectFocusedFrameSyncStyles(): SyncStyleList | null {
         } catch (_e) {}
       }
       if (selectors.length === 0 && className) selectors = ['.' + className];
-      if (selectors.length === 0) return;
 
-      let originalStyle: Record<string, string> = {};
+      if (selectors.length > 0) {
+        let originalStyle: Record<string, string> = {};
         const originalStr = (n as BaseNode).getPluginData('originalStyle');
         if (originalStr && typeof originalStr === 'string') {
           try {
@@ -82,6 +82,7 @@ function collectFocusedFrameSyncStyles(): SyncStyleList | null {
         } catch (_e) {
           // skip node on error
         }
+      }
     }
     if ('children' in n) {
       for (const c of (n as ChildrenMixin).children as SceneNode[]) walk(c);
