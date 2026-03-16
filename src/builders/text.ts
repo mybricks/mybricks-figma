@@ -30,27 +30,26 @@ export async function buildText(
   const textWidth = rawWidth !== undefined ? Math.ceil(rawWidth) : undefined;
   // 生产端标记：DOM 里该文字是单行（height <= lineHeight * 1.2），或未设置（undefined）时兜底按单行处理
   const singleLine = (json.style as any)?.singleLine === true;
-
-  console.log('[buildText] content:', json.content,
-    '| rawWidth:', rawWidth, '→ textWidth:', textWidth,
-    '| rawHeight:', rawHeight,
-    '| fontSize:', json.style?.fontSize,
-    '| singleLine:', singleLine,
-    '| textAutoResize before:', text.textAutoResize,
-  );
+  // 生产端标记：容器 CSS 约束了宽度（文字内容宽度 < 元素宽度 × 0.9），应固定 DOM 宽度
+  const widthConstrained = (json.style as any)?.widthConstrained === true;
 
   applyBaseStyle(text, json.style, true);
 
   if (textWidth !== undefined && textWidth >= 1) {
     text.resize(textWidth, text.height);
     if (singleLine !== false) {
-      // DOM 里是单行，或 singleLine 未知（undefined）→ 宽高都跟内容走，Figma 不折行
-      text.textAutoResize = 'WIDTH_AND_HEIGHT';
+      if (widthConstrained) {
+        // 容器约束宽度：文字未撑满容器（内容宽度 < 元素宽度 × 0.9），固定 DOM 实测宽度
+        // 文字内容留有余量，不会因 Figma 字体略宽而换行
+        text.textAutoResize = 'HEIGHT';
+      } else {
+        // 内容撑满宽度：让 Figma 按内容自动定宽，避免字体略宽时在临界点换行
+        text.textAutoResize = 'WIDTH_AND_HEIGHT';
+      }
     } else {
       // DOM 里已经是多行 → 固定宽度，高度随内容自动撑开
       text.textAutoResize = 'HEIGHT';
     }
-    console.log('[buildText] after resize | textAutoResize:', text.textAutoResize, '| actual node size:', text.width, 'x', text.height, '| content:', json.content);
   }
 
   if (json.style?.color) {
