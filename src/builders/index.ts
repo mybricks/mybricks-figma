@@ -89,6 +89,7 @@ export async function buildChildren(
       nodes.push(node);
     } catch (e: any) {
       const msg = e?.message ?? String(e);
+      console.error('[buildChildren] error on child', i, 'type:', child.type, 'name:', child.name, '| msg:', msg, '| stack:', e?.stack ?? '(no stack)');
       errs.push(msg);
       // 仅当本次 buildNode 已向 parent 追加了节点时才移除（否则会误删前一个成功构建的兄弟节点）
       if (parent.children.length > lengthBefore) {

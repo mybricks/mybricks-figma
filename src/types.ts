@@ -37,6 +37,11 @@ export interface StyleJSON {
   strokeColor?: string;
   strokeWeight?: number;
   strokeAlign?: 'INSIDE' | 'OUTSIDE' | 'CENTER';
+  /** 四边独立描边宽度（当四边不一致时输出，消费端使用 individualStrokeWeights） */
+  strokeTopWeight?: number;
+  strokeRightWeight?: number;
+  strokeBottomWeight?: number;
+  strokeLeftWeight?: number;
 
   borderRadius?: number | [number, number, number, number];
 
@@ -56,6 +61,7 @@ export interface StyleJSON {
   lineHeight?: number | { value: number; unit: 'PIXELS' | 'PERCENT' | 'AUTO' };
   letterSpacing?: number | { value: number; unit: 'PIXELS' | 'PERCENT' };
   textDecoration?: 'NONE' | 'UNDERLINE' | 'STRIKETHROUGH';
+  textOverflow?: 'ellipsis';
 
   // Auto-layout properties
   layoutMode?: 'NONE' | 'HORIZONTAL' | 'VERTICAL' | 'GRID';
@@ -75,6 +81,12 @@ export interface StyleJSON {
 
   // CSS position: absolute / fixed 的元素在 Figma 中需脱离 Auto Layout 流式排布
   positionType?: 'absolute';
+
+  // Auto Layout 子节点 margin（对应 CSS margin-inline-start/end）
+  marginLeft?: number;
+  marginRight?: number;
+  marginTop?: number;
+  marginBottom?: number;
 
   // Constraints
   constraints?: {

@@ -4,8 +4,19 @@ import { parseColorWithOpacity } from './color';
 export function applyBaseStyle(node: SceneNode, style?: StyleJSON, skipResizeForText?: boolean): void {
   if (!style) return;
 
-  if (style.x !== undefined) node.x = style.x;
-  if (style.y !== undefined) node.y = style.y;
+  // 若父节点是 Auto Layout，不能直接赋值 x/y，否则 Figma 会将该节点切换为 ABSOLUTE positioning
+  // 脱离自动布局，导致 counterAxisAlignItems: CENTER 等对齐失效
+  const parentNode = (node as any).parent;
+  const parentHasAutoLayout = parentNode && 'layoutMode' in parentNode && parentNode.layoutMode !== 'NONE';
+  if (!parentHasAutoLayout) {
+    if (style.x !== undefined && style.x !== null && isFinite(style.x as number)) node.x = style.x as number;
+    if (style.y !== undefined && style.y !== null && isFinite(style.y as number)) node.y = style.y as number;
+  }
+  if (node.type === 'TEXT') {
+    const parentMode = parentNode ? (parentNode as any).layoutMode : 'no-parent';
+    const parentName = parentNode ? parentNode.name : 'no-parent';
+    console.log('[xy-guard] TEXT', node.name, '| parentHasAutoLayout:', parentHasAutoLayout, '| parentMode:', parentMode, '| parentName:', parentName, '| style.x:', style.x, 'style.y:', style.y, '| action:', parentHasAutoLayout ? 'SKIP x/y (auto layout)' : 'SET x/y');
+  }
   if (style.rotation !== undefined && 'rotation' in node) {
     (node as SceneNode & { rotation: number }).rotation = style.rotation;
   }
@@ -185,7 +196,21 @@ export function applyStrokes(node: GeometryMixin, style?: StyleJSON): void {
     node.strokes = [{ type: 'SOLID', color, opacity }];
   }
 
-  if (style.strokeWeight !== undefined) {
+  const hasIndividual =
+    style.strokeTopWeight !== undefined ||
+    style.strokeRightWeight !== undefined ||
+    style.strokeBottomWeight !== undefined ||
+    style.strokeLeftWeight !== undefined;
+
+  if (hasIndividual) {
+    // 四边独立描边：直接设置各边属性（individualStrokeWeights 是只读 getter，不能赋值）
+    if ('strokeTopWeight' in node) {
+      (node as any).strokeTopWeight = style.strokeTopWeight ?? 0;
+      (node as any).strokeRightWeight = style.strokeRightWeight ?? 0;
+      (node as any).strokeBottomWeight = style.strokeBottomWeight ?? 0;
+      (node as any).strokeLeftWeight = style.strokeLeftWeight ?? 0;
+    }
+  } else if (style.strokeWeight !== undefined) {
     node.strokeWeight = style.strokeWeight;
   }
 

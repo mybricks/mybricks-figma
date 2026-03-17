@@ -32,12 +32,28 @@ export async function buildText(
   const singleLine = (json.style as any)?.singleLine === true;
   // 生产端标记：容器 CSS 约束了宽度（文字内容宽度 < 元素宽度 × 0.9），应固定 DOM 宽度
   const widthConstrained = (json.style as any)?.widthConstrained === true;
+  // 生产端标记：CSS text-overflow: ellipsis，文字超出容器时截断显示省略号
+  const textOverflow = json.style?.textOverflow;
 
   applyBaseStyle(text, json.style, true);
 
   if (textWidth !== undefined && textWidth >= 1) {
     text.resize(textWidth, text.height);
-    if (singleLine !== false) {
+    if (textOverflow === 'ellipsis') {
+      // 在 Auto Layout 父容器内不固定高度，让文字自然高度由父容器居中对齐（counterAxisAlignItems: CENTER）
+      // 固定高度会把 DOM flex stretch 后的容器高度带入 Figma，导致文字贴顶无法居中
+      const parentHasAutoLayout = (parent as any).layoutMode && (parent as any).layoutMode !== 'NONE';
+      if (parentHasAutoLayout) {
+        text.textAutoResize = 'HEIGHT';
+      } else {
+        text.textAutoResize = 'NONE';
+        const fixedHeight = rawHeight !== undefined ? Math.ceil(rawHeight) : text.height;
+        text.resize(textWidth, fixedHeight);
+      }
+      if ('textTruncation' in text) {
+        (text as any).textTruncation = 'ENDING';
+      }
+    } else if (singleLine !== false) {
       if (widthConstrained) {
         // 容器约束宽度：文字未撑满容器（内容宽度 < 元素宽度 × 0.9），固定 DOM 实测宽度
         // 文字内容留有余量，不会因 Figma 字体略宽而换行

@@ -86,11 +86,28 @@ export function applyLayoutAndSize(
     }
   }
 
-  if (style.x !== undefined) node.x = style.x;
-  if (style.y !== undefined) node.y = style.y;
+  if (style.x !== undefined && style.x !== null && isFinite(style.x as number)) node.x = style.x as number;
+  if (style.y !== undefined && style.y !== null && isFinite(style.y as number)) node.y = style.y as number;
   if (style.rotation !== undefined) node.rotation = style.rotation;
 
   if (style.opacity !== undefined) node.opacity = style.opacity;
+
+  // Auto Layout 子节点的 margin（对应 CSS margin-inline-start/end）
+  // Figma 要求父节点 layoutMode !== NONE 才能设置子节点 margin
+  if ('layoutPositioning' in node) {
+    const parentNode = (node as any).parent;
+    const parentHasLayout = parentNode && 'layoutMode' in parentNode && parentNode.layoutMode !== 'NONE';
+    if (parentHasLayout) {
+      try {
+        if (style.marginLeft !== undefined && isFinite(style.marginLeft as number)) (node as any).marginLeft = style.marginLeft;
+        if (style.marginRight !== undefined && isFinite(style.marginRight as number)) (node as any).marginRight = style.marginRight;
+        if (style.marginTop !== undefined && isFinite(style.marginTop as number)) (node as any).marginTop = style.marginTop;
+        if (style.marginBottom !== undefined && isFinite(style.marginBottom as number)) (node as any).marginBottom = style.marginBottom;
+      } catch (e: any) {
+        console.warn('[applyLayoutAndSize] margin error:', e?.message, '| node.type:', node.type, '| node.name:', node.name);
+      }
+    }
+  }
 
   if (style.constraints && 'constraints' in node) {
     (node as ConstraintMixin).constraints = {
