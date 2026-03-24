@@ -6,16 +6,18 @@ export function applyBaseStyle(node: SceneNode, style?: StyleJSON, skipResizeFor
 
   // 若父节点是 Auto Layout，不能直接赋值 x/y，否则 Figma 会将该节点切换为 ABSOLUTE positioning
   // 脱离自动布局，导致 counterAxisAlignItems: CENTER 等对齐失效
+  // 例外：positionType: 'absolute' 的节点需要主动设置 ABSOLUTE positioning 并保留 x/y
   const parentNode = (node as any).parent;
   const parentHasAutoLayout = parentNode && 'layoutMode' in parentNode && parentNode.layoutMode !== 'NONE';
-  if (!parentHasAutoLayout) {
+
+  if (style.positionType === 'absolute' && 'layoutPositioning' in node && parentHasAutoLayout) {
+    (node as any).layoutPositioning = 'ABSOLUTE';
+  }
+
+  const skipXY = parentHasAutoLayout && style.positionType !== 'absolute';
+  if (!skipXY) {
     if (style.x !== undefined && style.x !== null && isFinite(style.x as number)) node.x = style.x as number;
     if (style.y !== undefined && style.y !== null && isFinite(style.y as number)) node.y = style.y as number;
-  }
-  if (node.type === 'TEXT') {
-    const parentMode = parentNode ? (parentNode as any).layoutMode : 'no-parent';
-    const parentName = parentNode ? parentNode.name : 'no-parent';
-    console.log('[xy-guard] TEXT', node.name, '| parentHasAutoLayout:', parentHasAutoLayout, '| parentMode:', parentMode, '| parentName:', parentName, '| style.x:', style.x, 'style.y:', style.y, '| action:', parentHasAutoLayout ? 'SKIP x/y (auto layout)' : 'SET x/y');
   }
   if (style.rotation !== undefined && 'rotation' in node) {
     (node as SceneNode & { rotation: number }).rotation = style.rotation;
@@ -32,11 +34,6 @@ export function applyBaseStyle(node: SceneNode, style?: StyleJSON, skipResizeFor
     } else if (h !== undefined) {
       (node as GeometryMixin & LayoutMixin).resize((node as any).width ?? 100, h);
     }
-    if (isText) {
-      console.log('[applyBaseStyle] TEXT was resized! w:', style.width, 'h:', style.height, 'textAutoResize after:', (node as any).textAutoResize);
-    }
-  } else if (isText) {
-    console.log('[applyBaseStyle] TEXT skip resize (skipResizeForText=', skipResizeForText, ') textAutoResize:', (node as any).textAutoResize, '| w:', style.width, 'h:', style.height);
   }
 
   if (style.opacity !== undefined && 'opacity' in node) {
@@ -53,10 +50,18 @@ export function applyBaseStyle(node: SceneNode, style?: StyleJSON, skipResizeFor
 }
 
 /**
- * 线性渐变角度 → Figma gradientTransform（2x3）。
- * 使 0%/100% 色标正好落在图层边界上（渐变线从一边拉到对边，不超出画布）。
- * Figma 渐变空间：(0,0.5) 为起点、(1,0.5) 为终点；需映射到图层归一化空间 [0,1] 的边界两点。
- * 中心 (0.5,0.5)，方向 (cos,sin)，半长 D = 0.5/max(|cos|,|sin|)，起点/终点 = 中心 ± D*(cos,sin)。
+ * 线性渐变角度 → Figma gradientTransform（2x3 仿射矩阵）。
+ *
+ * Figma gradientTransform 格式：[[a, b, tx], [c, d, ty]]
+ *   第一列 [a, c]：渐变方向向量（从起点到终点，归一化到图层空间）
+ *   第二列 [b, d]：垂直方向向量（必须非零，否则矩阵奇异，Figma 无法渲染渐变）
+ *   第三列 [tx, ty]：渐变起点坐标（图层归一化空间）
+ *
+ * 算法：
+ *   中心 (0.5,0.5)，方向 (cos,sin)，半长 D = 0.5/max(|cos|,|sin|)
+ *   起点 = 中心 - D*(cos,sin)，终点 = 中心 + D*(cos,sin)
+ *   第一列 = 终点 - 起点 = (2D*cos, 2D*sin)
+ *   第二列 = 垂直方向 = (-sin, cos)（旋转矩阵的正交列）
  */
 function gradientTransformFromAngle(angleDeg: number): Transform {
   const rad = (angleDeg * Math.PI) / 180;
@@ -69,15 +74,23 @@ function gradientTransformFromAngle(angleDeg: number): Transform {
   const endY = 0.5 + D * sin;
   const a = endX - startX;
   const c = endY - startY;
-  return [
-    [a, 0, startX],
-    [c, 0, startY],
+  const transform: Transform = [
+    [a, -sin, startX],
+    [c,  cos, startY],
   ];
+  console.log('[gradient] angleDeg=%d figmaAngle=%d transform=%o', angleDeg, angleDeg, transform);
+  return transform;
 }
 
-/** CSS linear-gradient 角度（0deg=上，90deg=右）→ Figma 用的角度（0°=左→右） */
+/**
+ * CSS linear-gradient 角度 → Figma 渐变角度。
+ * CSS：0deg=to top（终点朝上），顺时针递增（90deg=to right）
+ * Figma：0deg=水平向右，顺时针递增
+ * 映射关系：CSS 90deg=右 → Figma 0deg；CSS 0deg=上 → Figma 90deg；CSS 180deg=下 → Figma 270deg
+ * 公式：figma = (450 - css) % 360
+ */
 function cssAngleToFigma(cssAngleDeg: number): number {
-  return (270 + cssAngleDeg) % 360;
+  return (450 - cssAngleDeg) % 360;
 }
 
 /** data URL 或纯 base64 转为 Uint8Array，供 figma.createImage 使用 */
@@ -152,10 +165,12 @@ export async function applyFills(node: GeometryMixin, fills?: (string | FillObje
     if (f.type === 'GRADIENT_LINEAR' && f.gradientStops && f.gradientStops.length >= 2) {
       const gradientStops: { position: number; color: RGBA }[] = f.gradientStops.map((s) => {
         const { color, opacity: o } = parseColorWithOpacity(s.color);
+        console.log('[gradient stop] rawColor=%s parsed=%o opacity=%d', s.color, color, o);
         return { position: s.position, color: { ...color, a: o } };
       });
       const cssAngle = f.angle ?? 0;
       const figmaAngle = cssAngleToFigma(cssAngle);
+      console.log('[gradient] cssAngle=%d → figmaAngle=%d stops=%o', cssAngle, figmaAngle, gradientStops);
       paintArray.push({
         type: 'GRADIENT_LINEAR',
         gradientTransform: gradientTransformFromAngle(figmaAngle),
@@ -216,6 +231,18 @@ export function applyStrokes(node: GeometryMixin, style?: StyleJSON): void {
 
   if (style.strokeAlign && 'strokeAlign' in node) {
     (node as GeometryMixin).strokeAlign = style.strokeAlign;
+  } else if ((node as any).strokes?.length > 0 && 'strokeAlign' in node) {
+    // 当节点无 padding 且有 Auto Layout 时，INSIDE 的边框会被填满的子节点覆盖，需改为 OUTSIDE。
+    // 有 padding 的节点（如 radio-button-wrapper）边框不会被子节点覆盖，保留 INSIDE 避免
+    // 向外扩展的边框被相邻节点压住（如"图片"和"视频"之间的蓝色分割线消失）。
+    const hasPadding = (style.paddingTop || 0) > 0 ||
+                       (style.paddingRight || 0) > 0 ||
+                       (style.paddingBottom || 0) > 0 ||
+                       (style.paddingLeft || 0) > 0;
+    const hasAutoLayout = !!(style.layoutMode && style.layoutMode !== 'NONE');
+    if (hasAutoLayout && !hasPadding) {
+      (node as GeometryMixin).strokeAlign = 'OUTSIDE';
+    }
   }
 }
 

@@ -98,5 +98,7 @@ export async function buildChildren(
       }
     }
   }
+  // ant-radio-button-wrapper-checked 在 DOM 里 z-index 高于未选中项，
+  // 生产端已通过 _zIndex 字段排序，消费端不需要额外处理。
   return nodes;
 }

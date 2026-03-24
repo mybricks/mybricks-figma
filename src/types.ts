@@ -88,6 +88,9 @@ export interface StyleJSON {
   marginTop?: number;
   marginBottom?: number;
 
+  // 覆盖父容器的 counterAxisAlignItems，对应 CSS align-self
+  alignSelf?: 'MIN' | 'CENTER' | 'MAX' | 'STRETCH' | 'BASELINE';
+
   // Constraints
   constraints?: {
     horizontal?: 'MIN' | 'CENTER' | 'MAX' | 'STRETCH' | 'SCALE';

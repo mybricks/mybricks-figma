@@ -103,6 +103,10 @@ export function applyLayoutAndSize(
         if (style.marginRight !== undefined && isFinite(style.marginRight as number)) (node as any).marginRight = style.marginRight;
         if (style.marginTop !== undefined && isFinite(style.marginTop as number)) (node as any).marginTop = style.marginTop;
         if (style.marginBottom !== undefined && isFinite(style.marginBottom as number)) (node as any).marginBottom = style.marginBottom;
+        // alignSelf: 'MIN' → layoutAlign = 'MIN'（等价 align-self: flex-start）
+        if (style.alignSelf !== undefined && 'layoutAlign' in node) {
+          try { (node as any).layoutAlign = style.alignSelf; } catch (e: any) {}
+        }
       } catch (e: any) {
         console.warn('[applyLayoutAndSize] margin error:', e?.message, '| node.type:', node.type, '| node.name:', node.name);
       }
