@@ -60,6 +60,11 @@ export function parseColorWithOpacity(color: string): { color: RGB; opacity: num
     };
   }
 
+  // transparent 关键字（可能带 !important 后缀）
+  if (hex === 'transparent' || hex.startsWith('transparent ')) {
+    return { color: { r: 0, g: 0, b: 0 }, opacity: 0 };
+  }
+
   // CSS 变量或其他无法解析的字符串 → 返回透明色，而不是黑色
   if (hex.startsWith('var(') || hex.indexOf('var(') >= 0) {
     return { color: { r: 0, g: 0, b: 0 }, opacity: 0 };
