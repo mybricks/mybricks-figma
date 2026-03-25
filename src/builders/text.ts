@@ -29,15 +29,38 @@ export async function buildText(
   // 对文本宽度向上取整，避免浮点误差（如 83.9999 → 84）导致 Figma 认为文字超出宽度而换行
   const textWidth = rawWidth !== undefined ? Math.ceil(rawWidth) : undefined;
   // 生产端标记：DOM 里该文字是单行（height <= lineHeight * 1.2），或未设置（undefined）时兜底按单行处理
-  const singleLine = (json.style as any)?.singleLine === true;
+  const singleLine = json.style?.singleLine === true;
   // 生产端标记：容器 CSS 约束了宽度（文字内容宽度 < 元素宽度 × 0.9），应固定 DOM 宽度
-  const widthConstrained = (json.style as any)?.widthConstrained === true;
+  const widthConstrained = json.style?.widthConstrained === true;
   // 生产端标记：CSS text-overflow: ellipsis，文字超出容器时截断显示省略号
   const textOverflow = json.style?.textOverflow;
+
+  // 绝对定位 + textAlignVertical:CENTER + 盒高明显大于单行（height > fontSize * 2）：
+  // 等价于浏览器「span 铺满容器 + flex 居中」，用固定全盒 + NONE 自动调整让 textAlignVertical 生效。
+  // 例：antd Pagination 的 .ant-pagination-item-ellipsis（•••），position:absolute 撑满容器，内容 flex 居中。
+  const rawFontSize = json.style?.fontSize ?? 14;
+  const positionType = json.style?.positionType;
+  const isAbsoluteCenteredBox =
+    (positionType === 'absolute' || positionType === 'fixed') &&
+    json.style?.textAlignVertical === 'CENTER' &&
+    rawHeight !== undefined &&
+    rawHeight > rawFontSize * 2;
 
   applyBaseStyle(text, json.style, true);
 
   if (textWidth !== undefined && textWidth >= 1) {
+    if (isAbsoluteCenteredBox && rawHeight !== undefined) {
+      // 先设正确 fontSize，使 •••  自然宽度基于正式字号（约 24px < 32px），
+      // 避免 Figma 默认字号导致自然宽度 > textWidth，从而让后续 resize 被静默拒绝。
+      if (json.style?.fontSize !== undefined && json.style.fontSize >= 1) {
+        text.fontSize = json.style.fontSize;
+      }
+      // 两步 resize：HEIGHT 模式先锁宽（不受内容高度约束），NONE 模式再锁高到全盒。
+      text.textAutoResize = 'HEIGHT';
+      text.resize(textWidth, text.height);
+      text.textAutoResize = 'NONE';
+      text.resize(textWidth, Math.ceil(rawHeight));
+    } else {
     text.resize(textWidth, text.height);
     if (textOverflow === 'ellipsis') {
       // 在 Auto Layout 父容器内不固定高度，让文字自然高度由父容器居中对齐（counterAxisAlignItems: CENTER）
@@ -66,6 +89,7 @@ export async function buildText(
       // DOM 里已经是多行 → 固定宽度，高度随内容自动撑开
       text.textAutoResize = 'HEIGHT';
     }
+    } // else (非 isAbsoluteCenteredBox)
   }
 
   if (json.style?.color) {
