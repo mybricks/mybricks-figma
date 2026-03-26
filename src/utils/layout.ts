@@ -1,4 +1,30 @@
-import type { StyleJSON } from '../types';
+import type { NodeJSON, StyleJSON } from '../types';
+
+/**
+ * 直接子节点在主轴上的 margin 明显大于父级 itemSpacing 时，视为 flex 里 margin:auto / 换行后顶到行尾等场景，
+ * Figma Auto Layout 无法还原，应改用 JSON 中的 x/y（与 dom-to-json 保留「超大」主轴 margin 的约定一致）。
+ */
+export function directChildHasOversizedMainAxisMargin(json: NodeJSON): boolean {
+  const st = json.style;
+  if (!st?.layoutMode || st.layoutMode === 'GRID') return false;
+  const spacing = st.itemSpacing ?? 0;
+  const thresh = spacing + 1;
+  const lm = st.layoutMode;
+  const ch = json.children;
+  if (!ch || ch.length === 0) return false;
+  for (const c of ch) {
+    const s = c.style;
+    if (!s || s.positionType === 'absolute') continue;
+    if (lm === 'HORIZONTAL') {
+      if (s.marginLeft != null && s.marginLeft > thresh) return true;
+      if (s.marginRight != null && s.marginRight > thresh) return true;
+    } else if (lm === 'VERTICAL') {
+      if (s.marginTop != null && s.marginTop > thresh) return true;
+      if (s.marginBottom != null && s.marginBottom > thresh) return true;
+    }
+  }
+  return false;
+}
 
 /**
  * Applies auto-layout, sizing mode, and dimensions in the correct order for Figma.
@@ -14,12 +40,66 @@ import type { StyleJSON } from '../types';
  */
 export function applyLayoutAndSize(
   node: FrameNode | ComponentNode,
-  style?: StyleJSON
+  style?: StyleJSON,
+  frameJson?: NodeJSON
 ): void {
   if (!style) return;
 
   const useGrid = style.layoutGridColumns != null && style.layoutGridColumns > 0;
-  const layoutMode = useGrid ? 'GRID' : style.layoutMode;
+  let layoutMode = useGrid ? 'GRID' : style.layoutMode;
+
+  const wouldUseAutoLayout = !!(
+    frameJson &&
+    layoutMode &&
+    layoutMode !== 'NONE' &&
+    !useGrid
+  );
+  const oversizedMainAxisMargin = wouldUseAutoLayout
+    ? directChildHasOversizedMainAxisMargin(frameJson!)
+    : false;
+
+  // 排查：控制台过滤 [mb-figma-layout]（插件在 Figma → Plugins → Development → Open Console）
+  const _dbgTag = frameJson
+    ? `${frameJson.name || ''}/${frameJson.className || ''}`
+    : '';
+  const _wantDbg =
+    !!frameJson &&
+    (frameJson.style?.layoutWrap === 'WRAP' ||
+      frameJson.className === 'filterArea' ||
+      frameJson.name === 'filterArea' ||
+      oversizedMainAxisMargin);
+  if (_wantDbg && frameJson) {
+    const spacing = frameJson.style?.itemSpacing ?? 0;
+    const thresh = spacing + 1;
+    const childDbg = frameJson.children?.map((c) => ({
+      n: c.name,
+      c: c.className,
+      x: c.style?.x,
+      y: c.style?.y,
+      mL: c.style?.marginLeft,
+      mR: c.style?.marginRight,
+      abs: c.style?.positionType === 'absolute',
+      overL: c.style != null && c.style.marginLeft != null && c.style.marginLeft > thresh,
+      overR: c.style != null && c.style.marginRight != null && c.style.marginRight > thresh,
+    }));
+    console.log('[mb-figma-layout]', {
+      frame: _dbgTag,
+      wouldUseAutoLayout,
+      useGrid,
+      jsonLayoutMode: frameJson.style?.layoutMode,
+      layoutWrap: frameJson.style?.layoutWrap,
+      itemSpacing: spacing,
+      thresh,
+      oversizedMainAxisMargin_skipToNone: oversizedMainAxisMargin,
+      figmaFrameName: node.name,
+      children: childDbg,
+    });
+  }
+
+  // 子项主轴 margin 远大于 itemSpacing（典型 margin:auto 的解析像素）时，Auto Layout 会覆盖子 x/y，换行第二行会贴左（GRID 不参与此判断）
+  if (oversizedMainAxisMargin) {
+    layoutMode = 'NONE';
+  }
 
   if (layoutMode && layoutMode !== 'NONE') {
     // GRID 只能在无子节点时设置，否则 Figma 会报 "Cannot delete occupied row/column"

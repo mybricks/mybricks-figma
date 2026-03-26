@@ -28,13 +28,13 @@ export async function buildFrame(
   applyBorderRadius(frame, json.style);
   applyEffects(frame, json.style);
 
-  applyLayoutAndSize(frame, json.style);
+  applyLayoutAndSize(frame, json.style, json);
 
   if (json.children && json.children.length > 0) {
     await buildChildren(json.children, frame, defMap, errors, defaultFont);
   }
 
-  applyLayoutAndSize(frame, json.style);
+  applyLayoutAndSize(frame, json.style, json);
 
   return frame;
 }
