@@ -247,10 +247,16 @@ export interface FillObject {
   type: 'SOLID' | 'GRADIENT_LINEAR' | 'GRADIENT_RADIAL' | 'IMAGE';
   color?: string;
   opacity?: number;
-  /** 线性渐变色标 */
+  /** 线性/径向渐变色标列表 */
   gradientStops?: { position: number; color: string }[];
   /** 线性渐变角度（度），0=上→下，90=左→右 */
   angle?: number;
+  /** 径向渐变圆心 x 坐标（0-1，相对节点归一化空间），默认 0.5 */
+  centerX?: number;
+  /** 径向渐变圆心 y 坐标（0-1，相对节点归一化空间），默认 0.5 */
+  centerY?: number;
+  /** 径向渐变半径（0-1，相对节点归一化空间），默认 0.5（圆与边缘相切） */
+  radius?: number;
   /** 图片 fill：data URL（data:image/...;base64,...）或纯 base64，由 dom-to-json 内联后传入 */
   content?: string;
   /** 图片 URL（当 content 未内联时可选，插件尝试拉取） */

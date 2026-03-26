@@ -1,3 +1,4 @@
+import { KEY_CODE } from '@tarojs/runtime';
 import type { StyleJSON, FillObject, ShadowEffect, BlurEffect } from '../types';
 import { parseColorWithOpacity } from './color';
 
@@ -93,6 +94,31 @@ function cssAngleToFigma(cssAngleDeg: number): number {
   return (450 - cssAngleDeg) % 360;
 }
 
+/**
+ * 径向渐变圆心/半径 → Figma gradientTransform（2x3 仿射矩阵）。
+ *
+ * Figma GRADIENT_RADIAL 的 canonical 渐变空间中：
+ *   圆心       = (0.5, 0)     ← 注意：y=0，不是 y=0.5
+ *   end handle = (1.0, 0)     ← 定义 x 方向半径
+ *   width handle = (0.5, 0.5) ← 定义 y 方向半径（圆形时与 x 半径相等）
+ *
+ * 由 canonical 圆心 (0.5, 0) 推导：
+ *   Row 0: a = 2r,  b = 0, tx = cx - r  （canonical x=0.5 → layer cx）
+ *   Row 1: c = 0,   d = 2r, ty = cy     （canonical y=0 → layer cy，直接平移）
+ *
+ * 验证（cx=0.5, cy=0.5, r=0.5）：
+ *   [[1, 0, 0], [0, 1, 0.5]]
+ *   center (0.5, 0)   → layer (0.5, 0.5)   ✓ 居中
+ *   end    (1.0, 0)   → layer (1.0, 0.5)   ✓ 右中边
+ *   width  (0.5, 0.5) → layer (0.5, 1.0)   ✓ 下中边，圆形半径相等
+ */
+function gradientTransformFromRadial(cx: number, cy: number, r: number): Transform {
+  return [
+    [2 * r, 0,     cx - r],
+    [0,     2 * r, cy    ],
+  ];
+}
+
 /** data URL 或纯 base64 转为 Uint8Array，供 figma.createImage 使用 */
 function dataUrlToBytes(content: string): Uint8Array | null {
   if (!content || typeof content !== 'string') return null;
@@ -135,6 +161,10 @@ export async function applyFills(node: GeometryMixin, fills?: (string | FillObje
   const paintArray: Paint[] = [];
   for (const f of fills) {
     if (typeof f === 'string') {
+      // radial-gradient / linear-gradient 等 CSS 渐变字符串无法直接解析为纯色，跳过避免 NaN fill
+      if (f.includes('gradient')) {
+        continue;
+      }  
       const { color, opacity } = parseColorWithOpacity(f);
       paintArray.push({ type: 'SOLID', color, opacity } as SolidPaint);
       continue;
@@ -163,10 +193,18 @@ export async function applyFills(node: GeometryMixin, fills?: (string | FillObje
     }
 
     if (f.type === 'GRADIENT_LINEAR' && f.gradientStops && f.gradientStops.length >= 2) {
-      const gradientStops: { position: number; color: RGBA }[] = f.gradientStops.map((s) => {
+      const rawLinearStops: { position: number; color: RGBA }[] = f.gradientStops.map((s) => {
         const { color, opacity: o } = parseColorWithOpacity(s.color);
         console.log('[gradient stop] rawColor=%s parsed=%o opacity=%d', s.color, color, o);
         return { position: s.position, color: { ...color, a: o } };
+      });
+      // 修复透明色标：同 GRADIENT_RADIAL，避免经过黑色插值
+      const coloredLinearStops = rawLinearStops.filter(s => s.color.a > 0);
+      const gradientStops = rawLinearStops.map(s => {
+        if (s.color.a === 0 && coloredLinearStops.length > 0) {
+          return { ...s, color: { ...coloredLinearStops[0].color, a: 0 } };
+        }
+        return s;
       });
       const cssAngle = f.angle ?? 0;
       const figmaAngle = cssAngleToFigma(cssAngle);
@@ -174,6 +212,35 @@ export async function applyFills(node: GeometryMixin, fills?: (string | FillObje
       paintArray.push({
         type: 'GRADIENT_LINEAR',
         gradientTransform: gradientTransformFromAngle(figmaAngle),
+        gradientStops,
+      } as GradientPaint);
+      continue;
+    }
+
+    if (f.type === 'GRADIENT_RADIAL' && f.gradientStops && f.gradientStops.length >= 2) {
+
+      const rawStops: { position: number; color: RGBA }[] = f.gradientStops.map((s) => {
+        const { color, opacity: o } = parseColorWithOpacity(s.color);
+        console.log('[radial stop] rawColor=%s → r=%f g=%f b=%f a=%f', s.color, color.r, color.g, color.b, o);
+        return { position: s.position, color: { ...color, a: o } };
+      });
+      // 修复透明色标：CSS transparent = rgba(0,0,0,0)，Figma 插值时会经过黑色
+      // 将 a=0 的色标颜色替换为最近有色色标的 RGB + alpha=0，保持色调淡出效果
+      const coloredStops = rawStops.filter(s => s.color.a > 0);
+      const gradientStops = rawStops.map(s => {
+        if (s.color.a === 0 && coloredStops.length > 0) {
+          return { ...s, color: { ...coloredStops[0].color, a: 0 } };
+        }
+        return s;
+      });
+      const cx = f.centerX ?? 0.5;
+      const cy = f.centerY ?? 0.5;
+      const r = f.radius ?? 0.5;
+      const transform = gradientTransformFromRadial(cx, cy, r);
+      console.log('[radial gradient] centerX=%f centerY=%f radius=%f transform=%o stops=%o', cx, cy, r, transform, gradientStops);
+      paintArray.push({
+        type: 'GRADIENT_RADIAL',
+        gradientTransform: transform,
         gradientStops,
       } as GradientPaint);
       continue;
