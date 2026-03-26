@@ -107,7 +107,7 @@
 | `paddingRight` | `number` | ≥ 0（像素） | CSS padding-right | Figma node.paddingRight |
 | `paddingBottom` | `number` | ≥ 0（像素） | CSS padding-bottom | Figma node.paddingBottom |
 | `paddingLeft` | `number` | ≥ 0（像素） | CSS padding-left | Figma node.paddingLeft |
-| `primaryAxisAlignItems` | `'MIN' \| 'CENTER' \| 'MAX' \| 'SPACE_BETWEEN'` | — | CSS justify-content 映射 | Figma node.primaryAxisAlignItems |
+| `primaryAxisAlignItems` | `'MIN' \| 'CENTER' \| 'MAX' \| 'SPACE_BETWEEN'` | — | CSS justify-content 映射；**`justify-content: space-between` 且仅 1 个流内 flex 子项时**，生产侧输出 `MIN`/`MAX`（主轴起点），因 Figma 单子项 `SPACE_BETWEEN` 会居中 | Figma node.primaryAxisAlignItems |
 | `counterAxisAlignItems` | `'MIN' \| 'CENTER' \| 'MAX' \| 'BASELINE'` | — | CSS align-items 映射 | Figma node.counterAxisAlignItems |
 | `layoutSizingHorizontal` | `'FIXED' \| 'HUG' \| 'FILL'` | — | 需要 HUG/FILL 时写入；**缺省=FIXED** | Figma node.layoutSizingHorizontal |
 | `layoutSizingVertical` | `'FIXED' \| 'HUG' \| 'FILL'` | — | text→frame伪元素升级时写 `'HUG'`；**缺省=FIXED** | Figma node.layoutSizingVertical |

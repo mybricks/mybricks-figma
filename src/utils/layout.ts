@@ -120,7 +120,20 @@ export function applyLayoutAndSize(
     if (style.paddingRight !== undefined) node.paddingRight = style.paddingRight;
     if (style.paddingBottom !== undefined) node.paddingBottom = style.paddingBottom;
     if (style.paddingLeft !== undefined) node.paddingLeft = style.paddingLeft;
-    if (style.primaryAxisAlignItems !== undefined) node.primaryAxisAlignItems = style.primaryAxisAlignItems;
+    // Figma：SPACE_BETWEEN + 仅 1 个流内子节点会居中，与 CSS flex 单子项 space-between（贴主轴起点）不一致；兜底旧 JSON
+    let primaryAxisAlign = style.primaryAxisAlignItems;
+    if (
+      primaryAxisAlign === 'SPACE_BETWEEN' &&
+      frameJson?.children &&
+      !useGrid &&
+      (layoutMode === 'HORIZONTAL' || layoutMode === 'VERTICAL')
+    ) {
+      const inFlow = frameJson.children.filter((c) => c.style?.positionType !== 'absolute');
+      if (inFlow.length <= 1) {
+        primaryAxisAlign = 'MIN';
+      }
+    }
+    if (primaryAxisAlign !== undefined) node.primaryAxisAlignItems = primaryAxisAlign;
     if (style.counterAxisAlignItems !== undefined) node.counterAxisAlignItems = style.counterAxisAlignItems;
 
     if (style.width !== undefined) {
