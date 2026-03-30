@@ -8,7 +8,9 @@ export function directChildHasOversizedMainAxisMargin(json: NodeJSON): boolean {
   const st = json.style;
   if (!st?.layoutMode || st.layoutMode === 'GRID') return false;
   const spacing = st.itemSpacing ?? 0;
-  const thresh = spacing + 1;
+  // 仅拦截 margin:auto 等"远超 itemSpacing"场景（通常几百 px），
+  // 正常 margin（如 4px 间距）不应触发降级，阈值设为 spacing + 40。
+  const thresh = spacing + 40;
   const lm = st.layoutMode;
   const ch = json.children;
   if (!ch || ch.length === 0) return false;
@@ -57,44 +59,6 @@ export function applyLayoutAndSize(
   const oversizedMainAxisMargin = wouldUseAutoLayout
     ? directChildHasOversizedMainAxisMargin(frameJson!)
     : false;
-
-  // 排查：控制台过滤 [mb-figma-layout]（插件在 Figma → Plugins → Development → Open Console）
-  const _dbgTag = frameJson
-    ? `${frameJson.name || ''}/${frameJson.className || ''}`
-    : '';
-  const _wantDbg =
-    !!frameJson &&
-    (frameJson.style?.layoutWrap === 'WRAP' ||
-      frameJson.className === 'filterArea' ||
-      frameJson.name === 'filterArea' ||
-      oversizedMainAxisMargin);
-  if (_wantDbg && frameJson) {
-    const spacing = frameJson.style?.itemSpacing ?? 0;
-    const thresh = spacing + 1;
-    const childDbg = frameJson.children?.map((c) => ({
-      n: c.name,
-      c: c.className,
-      x: c.style?.x,
-      y: c.style?.y,
-      mL: c.style?.marginLeft,
-      mR: c.style?.marginRight,
-      abs: c.style?.positionType === 'absolute',
-      overL: c.style != null && c.style.marginLeft != null && c.style.marginLeft > thresh,
-      overR: c.style != null && c.style.marginRight != null && c.style.marginRight > thresh,
-    }));
-    console.log('[mb-figma-layout]', {
-      frame: _dbgTag,
-      wouldUseAutoLayout,
-      useGrid,
-      jsonLayoutMode: frameJson.style?.layoutMode,
-      layoutWrap: frameJson.style?.layoutWrap,
-      itemSpacing: spacing,
-      thresh,
-      oversizedMainAxisMargin_skipToNone: oversizedMainAxisMargin,
-      figmaFrameName: node.name,
-      children: childDbg,
-    });
-  }
 
   // 子项主轴 margin 远大于 itemSpacing（典型 margin:auto 的解析像素）时，Auto Layout 会覆盖子 x/y，换行第二行会贴左（GRID 不参与此判断）
   if (oversizedMainAxisMargin) {
@@ -179,8 +143,15 @@ export function applyLayoutAndSize(
     }
   }
 
-  if (style.x !== undefined && style.x !== null && isFinite(style.x as number)) node.x = style.x as number;
-  if (style.y !== undefined && style.y !== null && isFinite(style.y as number)) node.y = style.y as number;
+  // 在 Auto Layout 父容器内设置 x/y 会触发 Figma 将子节点隐式切换为 ABSOLUTE positioning，
+  // 导致 layoutAlign（alignSelf）等流式对齐属性失效（与 applyBaseStyle 中 text 节点的防御逻辑一致）。
+  // 只有明确标记 positionType:'absolute' 的节点才需要设置 x/y；流式子节点的位置由 Auto Layout 管理。
+  const _parentNodeXY = (node as any).parent;
+  const _parentHasAutoLayoutXY = _parentNodeXY && 'layoutMode' in _parentNodeXY && _parentNodeXY.layoutMode !== 'NONE';
+  if (!_parentHasAutoLayoutXY || style.positionType === 'absolute') {
+    if (style.x !== undefined && style.x !== null && isFinite(style.x as number)) node.x = style.x as number;
+    if (style.y !== undefined && style.y !== null && isFinite(style.y as number)) node.y = style.y as number;
+  }
   if (style.rotation !== undefined) node.rotation = style.rotation;
 
   if (style.opacity !== undefined) node.opacity = style.opacity;
@@ -198,7 +169,17 @@ export function applyLayoutAndSize(
         if (style.marginBottom !== undefined && isFinite(style.marginBottom as number)) (node as any).marginBottom = style.marginBottom;
         // alignSelf: 'MIN' → layoutAlign = 'MIN'（等价 align-self: flex-start）
         if (style.alignSelf !== undefined && 'layoutAlign' in node) {
-          try { (node as any).layoutAlign = style.alignSelf; } catch (e: any) {}
+          try { (node as any).layoutAlign = style.alignSelf; } catch (_e) {}
+          // Figma 限制：layoutSizingHorizontal='FIXED' 时，layoutAlign 无法设为 CENTER/MIN/MAX（静默忽略）。
+          // 回退方案：当 layoutAlign 未能生效且目标是 CENTER，改为将父节点的 counterAxisAlignItems 设为 CENTER。
+          // 对于全宽兄弟节点（宽度 = 父容器宽度），counterAxisAlignItems 改为 CENTER 无视觉影响。
+          if ((node as any).layoutAlign !== style.alignSelf && style.alignSelf === 'CENTER' && 'counterAxisAlignItems' in parentNode) {
+            try {
+              (parentNode as any).counterAxisAlignItems = 'CENTER';
+            } catch (e2: any) {
+              console.warn('[mb-figma:alignSelf:fallback:error]', e2?.message, node.name);
+            }
+          }
         }
       } catch (e: any) {
         console.warn('[applyLayoutAndSize] margin error:', e?.message, '| node.type:', node.type, '| node.name:', node.name);

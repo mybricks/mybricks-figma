@@ -93,9 +93,27 @@
       font-weight: 500;
       cursor: pointer;
       transition: background 0.15s;
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      white-space: nowrap;
     }
     .btn-generate:hover { background: #0d8de5; }
     .btn-generate:disabled { background: #b3b3b3; cursor: not-allowed; }
+    .btn-generate .spinner {
+      display: none;
+      width: 13px;
+      height: 13px;
+      border: 2px solid rgba(255,255,255,0.4);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: btn-spin 0.7s linear infinite;
+      flex-shrink: 0;
+    }
+    .btn-generate.loading .spinner { display: block; }
+    @keyframes btn-spin {
+      to { transform: rotate(360deg); }
+    }
     .status {
       font-size: 12px;
       color: #888;
@@ -222,7 +240,7 @@
     <textarea id="json" placeholder="JSON"></textarea>
   </div>
   <div class="footer">
-    <button class="btn-generate" id="generate">生成</button>
+    <button class="btn-generate" id="generate"><span class="spinner"></span><span class="btn-label">生成</span></button>
     <div class="status" id="status"></div>
   </div>
   <div class="error-list-wrap" id="errorListWrap">
@@ -272,6 +290,8 @@
         return;
       }
       generateBtn.disabled = true;
+      generateBtn.classList.add('loading');
+      generateBtn.querySelector('.btn-label').textContent = '生成中…';
       setStatus('', '');
       showErrors([]);
       parent.postMessage({ pluginMessage: { type: 'clipboard-data', data: t } }, '*');
@@ -418,19 +438,25 @@
       copyToClipboard(lastSyncStylesJson, copySyncStylesBtn, '已复制', '复制失败，请手动选择上方内容复制');
     });
 
+    function resetGenerateBtn() {
+      generateBtn.disabled = false;
+      generateBtn.classList.remove('loading');
+      generateBtn.querySelector('.btn-label').textContent = '生成';
+    }
+
     window.onmessage = (event) => {
       const msg = event.data && event.data.pluginMessage;
       if (!msg) return;
       if (msg.type === 'done') {
         setStatus(msg.message || '', msg.errors && msg.errors.length ? 'error' : 'success');
-        generateBtn.disabled = false;
+        resetGenerateBtn();
         if (msg.errors && msg.errors.length) showErrors(msg.errors);
         else showErrors([]);
         requestClassNames();
       } else if (msg.type === 'error') {
         setStatus(msg.error, 'error');
         showErrors([msg.error]);
-        generateBtn.disabled = false;
+        resetGenerateBtn();
       } else if (msg.type === 'classNames') {
         renderClassNames(msg.list);
       } else if (msg.type === 'syncStyles') {

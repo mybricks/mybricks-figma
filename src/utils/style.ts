@@ -15,15 +15,10 @@ export function applyBaseStyle(node: SceneNode, style?: StyleJSON, skipResizeFor
     (node as any).layoutPositioning = 'ABSOLUTE';
   }
 
-  const skipXY = parentHasAutoLayout && style.positionType !== 'absolute';
-  if (!skipXY) {
-    if (style.x !== undefined && style.x !== null && isFinite(style.x as number)) node.x = style.x as number;
-    if (style.y !== undefined && style.y !== null && isFinite(style.y as number)) node.y = style.y as number;
-  }
-  if (style.rotation !== undefined && 'rotation' in node) {
-    (node as SceneNode & { rotation: number }).rotation = style.rotation;
-  }
-
+  // resize 必须在 x/y 和 rotation 之前执行：
+  // figma.createRectangle() 默认 100×100，若先设 x/y 再 rotation，旋转中心是基于 100×100 计算的，
+  // 最后 resize 改变尺寸会导致中心偏移，伪元素箭头等旋转图形位置完全错误。
+  // 正确顺序：resize（确定实际尺寸）→ x/y（基于正确尺寸定位）→ rotation（绕正确中心旋转）
   const isText = node.type === 'TEXT';
   if ('resize' in node && !(skipResizeForText && isText)) {
     const w = style.width;
@@ -35,6 +30,15 @@ export function applyBaseStyle(node: SceneNode, style?: StyleJSON, skipResizeFor
     } else if (h !== undefined) {
       (node as GeometryMixin & LayoutMixin).resize((node as any).width ?? 100, h);
     }
+  }
+
+  const skipXY = parentHasAutoLayout && style.positionType !== 'absolute';
+  if (!skipXY) {
+    if (style.x !== undefined && style.x !== null && isFinite(style.x as number)) node.x = style.x as number;
+    if (style.y !== undefined && style.y !== null && isFinite(style.y as number)) node.y = style.y as number;
+  }
+  if (style.rotation !== undefined && 'rotation' in node) {
+    (node as SceneNode & { rotation: number }).rotation = style.rotation;
   }
 
   if (style.opacity !== undefined && 'opacity' in node) {
@@ -79,7 +83,6 @@ function gradientTransformFromAngle(angleDeg: number): Transform {
     [a, -sin, startX],
     [c,  cos, startY],
   ];
-  console.log('[gradient] angleDeg=%d figmaAngle=%d transform=%o', angleDeg, angleDeg, transform);
   return transform;
 }
 
@@ -195,7 +198,6 @@ export async function applyFills(node: GeometryMixin, fills?: (string | FillObje
     if (f.type === 'GRADIENT_LINEAR' && f.gradientStops && f.gradientStops.length >= 2) {
       const rawLinearStops: { position: number; color: RGBA }[] = f.gradientStops.map((s) => {
         const { color, opacity: o } = parseColorWithOpacity(s.color);
-        console.log('[gradient stop] rawColor=%s parsed=%o opacity=%d', s.color, color, o);
         return { position: s.position, color: { ...color, a: o } };
       });
       // 修复透明色标：同 GRADIENT_RADIAL，避免经过黑色插值
@@ -208,7 +210,6 @@ export async function applyFills(node: GeometryMixin, fills?: (string | FillObje
       });
       const cssAngle = f.angle ?? 0;
       const figmaAngle = cssAngleToFigma(cssAngle);
-      console.log('[gradient] cssAngle=%d → figmaAngle=%d stops=%o', cssAngle, figmaAngle, gradientStops);
       paintArray.push({
         type: 'GRADIENT_LINEAR',
         gradientTransform: gradientTransformFromAngle(figmaAngle),
@@ -221,7 +222,6 @@ export async function applyFills(node: GeometryMixin, fills?: (string | FillObje
 
       const rawStops: { position: number; color: RGBA }[] = f.gradientStops.map((s) => {
         const { color, opacity: o } = parseColorWithOpacity(s.color);
-        console.log('[radial stop] rawColor=%s → r=%f g=%f b=%f a=%f', s.color, color.r, color.g, color.b, o);
         return { position: s.position, color: { ...color, a: o } };
       });
       // 修复透明色标：CSS transparent = rgba(0,0,0,0)，Figma 插值时会经过黑色
@@ -237,7 +237,6 @@ export async function applyFills(node: GeometryMixin, fills?: (string | FillObje
       const cy = f.centerY ?? 0.5;
       const r = f.radius ?? 0.5;
       const transform = gradientTransformFromRadial(cx, cy, r);
-      console.log('[radial gradient] centerX=%f centerY=%f radius=%f transform=%o stops=%o', cx, cy, r, transform, gradientStops);
       paintArray.push({
         type: 'GRADIENT_RADIAL',
         gradientTransform: transform,
@@ -299,17 +298,9 @@ export function applyStrokes(node: GeometryMixin, style?: StyleJSON): void {
   if (style.strokeAlign && 'strokeAlign' in node) {
     (node as GeometryMixin).strokeAlign = style.strokeAlign;
   } else if ((node as any).strokes?.length > 0 && 'strokeAlign' in node) {
-    // 当节点无 padding 且有 Auto Layout 时，INSIDE 的边框会被填满的子节点覆盖，需改为 OUTSIDE。
-    // 有 padding 的节点（如 radio-button-wrapper）边框不会被子节点覆盖，保留 INSIDE 避免
-    // 向外扩展的边框被相邻节点压住（如"图片"和"视频"之间的蓝色分割线消失）。
-    const hasPadding = (style.paddingTop || 0) > 0 ||
-                       (style.paddingRight || 0) > 0 ||
-                       (style.paddingBottom || 0) > 0 ||
-                       (style.paddingLeft || 0) > 0;
-    const hasAutoLayout = !!(style.layoutMode && style.layoutMode !== 'NONE');
-    if (hasAutoLayout && !hasPadding) {
-      (node as GeometryMixin).strokeAlign = 'OUTSIDE';
-    }
+    // DOM 的 getBoundingClientRect 返回尺寸始终包含 border 宽度，
+    // 对应 Figma 永远是 INSIDE，否则描边向外扩展会导致元素视觉尺寸偏大、相邻元素错位。
+    (node as GeometryMixin).strokeAlign = 'INSIDE';
   }
 }
 

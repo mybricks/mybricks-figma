@@ -48,7 +48,12 @@ export async function buildText(
 
   applyBaseStyle(text, json.style, true);
 
-  if (textWidth !== undefined && textWidth >= 1) {
+  if (textWidth === undefined || textWidth < 1) {
+    // 没有宽度信息（如 Auto Layout 子节点被清除了 width）时，
+    // Figma 默认 textAutoResize = 'NONE'，尺寸为 100×100，会导致文字超出父容器。
+    // 兜底设为 WIDTH_AND_HEIGHT 让文字按内容自动撑开。
+    text.textAutoResize = 'WIDTH_AND_HEIGHT';
+  } else if (textWidth !== undefined && textWidth >= 1) {
     if (isAbsoluteCenteredBox && rawHeight !== undefined) {
       // 先设正确 fontSize，使 •••  自然宽度基于正式字号（约 24px < 32px），
       // 避免 Figma 默认字号导致自然宽度 > textWidth，从而让后续 resize 被静默拒绝。

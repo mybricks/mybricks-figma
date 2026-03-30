@@ -149,13 +149,13 @@ figma.ui.onmessage = async (msg: { type: string; data?: string }) => {
     await generateFromJSON(root, errors);
     figma.ui.postMessage({
       type: 'done',
-      message: errors.length > 0 ? 'Generation completed with errors.' : 'Generation complete!',
+      message: errors.length > 0 ? `生成完成，但有 ${errors.length} 个错误。` : '导入成功！',
       errors: errors.length > 0 ? errors : undefined,
     });
     if (errors.length > 0) {
-      figma.notify(`MyBricks: completed with ${errors.length} error(s). See plugin for details.`, { error: true });
+      figma.notify(`生成完成，但有 ${errors.length} 个错误，详见插件面板。`, { error: true });
     } else {
-      figma.notify('MyBricks: generation complete!');
+      figma.notify('生成成功！');
     }
   } catch (e: any) {
     const errorMsg = e?.message ?? String(e);
@@ -177,14 +177,35 @@ async function generateFromJSON(root: RootJSON, errors: string[]): Promise<void>
     }
   }
 
+  // 导入前：记录已有节点 ID，并算出最右侧边界
+  const existingIds = new Set(page.children.map((n) => n.id));
+  let existingMaxRight = 0;
+  for (const n of page.children) {
+    if ('x' in n && 'width' in n) {
+      const right = (n as FrameNode).x + (n as FrameNode).width;
+      if (right > existingMaxRight) existingMaxRight = right;
+    }
+  }
+  const GAP = existingIds.size > 0 ? 80 : 0;
+
   const defaultFont = root.page.defaultFont;
   if (root.page.content.length > 0) {
     await buildChildren(root.page.content, page, defMap, errors, defaultFont);
   }
 
-  const allNodes = page.children;
-  if (allNodes.length > 0) {
-    figma.viewport.scrollAndZoomIntoView(allNodes);
-    allNodes[0].setRelaunchData({ pasteAndGenerate: 'Paste JSON and generate' });
+  // 导入后：找出新增节点，整体平移到已有内容右侧
+  const newNodes = page.children.filter((n) => !existingIds.has(n.id));
+  if (newNodes.length > 0) {
+    let minX = Infinity;
+    for (const n of newNodes) {
+      if ('x' in n && (n as FrameNode).x < minX) minX = (n as FrameNode).x;
+    }
+    const offsetX = existingMaxRight + GAP - minX;
+    if (offsetX !== 0) {
+      for (const n of newNodes) {
+        if ('x' in n) (n as FrameNode).x += offsetX;
+      }
+    }
+    newNodes[0].setRelaunchData({ pasteAndGenerate: 'Paste JSON and generate' });
   }
 }
