@@ -279,6 +279,7 @@
     jsonInput.addEventListener('input', updatePlaceholder);
     jsonInput.addEventListener('focus', () => zone.classList.remove('placeholder-only'));
     jsonInput.addEventListener('blur', updatePlaceholder);
+    jsonInput.addEventListener('click', () => { if (jsonInput.value) jsonInput.select(); });
 
     function runGenerate(text) {
       const t = (text || '').trim();

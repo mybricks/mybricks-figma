@@ -159,7 +159,12 @@ function dataUrlToBytes(content: string): Uint8Array | null {
 }
 
 export async function applyFills(node: GeometryMixin, fills?: (string | FillObject)[]): Promise<void> {
-  if (!fills || fills.length === 0) return;
+  if (!fills) return;
+  // fills 为空数组时，明确清除 Figma 默认白色填充（让矩形透明）
+  if (fills.length === 0) {
+    node.fills = [];
+    return;
+  }
 
   const paintArray: Paint[] = [];
   for (const f of fills) {

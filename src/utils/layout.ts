@@ -47,8 +47,13 @@ export function applyLayoutAndSize(
 ): void {
   if (!style) return;
 
-  const useGrid = style.layoutGridColumns != null && style.layoutGridColumns > 0;
-  let layoutMode = useGrid ? 'GRID' : style.layoutMode;
+  // layoutWrap=WRAP 的 CSS grid：子节点 x/y 已由 dom-to-json 精确计算（含 transform 偏移）。
+  // ① Figma GRID（等宽 FLEX 列）无法还原不等宽列（如 2fr/1fr 的看板两卡片）；
+  // ② HORIZONTAL+WRAP Auto Layout 会因 transform 导致测量宽度偏大，使后续子节点换行；
+  // 因此对 WRAP grid 直接不设 layoutMode，让子节点用绝对坐标排列。
+  const isWrapGrid = style.layoutGridColumns != null && style.layoutGridColumns > 0 && style.layoutWrap === 'WRAP';
+  const useGrid = !isWrapGrid && style.layoutGridColumns != null && style.layoutGridColumns > 0;
+  let layoutMode: 'NONE' | 'HORIZONTAL' | 'VERTICAL' | 'GRID' | undefined = isWrapGrid ? undefined : (useGrid ? 'GRID' : style.layoutMode);
 
   const wouldUseAutoLayout = !!(
     frameJson &&

@@ -41,7 +41,7 @@ export interface StyleJSON {
   width?: number;
   /** 节点高度（像素）。text 节点由消费侧按 textAutoResize 策略决定是否使用。 */
   height?: number;
-  /** 旋转角度（度，顺时针为正）。 */
+  /** 旋转角度（度，逆时针为正，与 Figma API 约定一致；生产端已将 CSS 顺时针转为逆时针）。 */
   rotation?: number;
 
   // ── 外观 ──────────────────────────────────────────────────────────────────
