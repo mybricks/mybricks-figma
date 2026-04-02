@@ -207,5 +207,8 @@ async function generateFromJSON(root: RootJSON, errors: string[]): Promise<void>
       }
     }
     newNodes[0].setRelaunchData({ pasteAndGenerate: 'Paste JSON and generate' });
+    figma.currentPage.selection = newNodes as SceneNode[];
+    figma.viewport.scrollAndZoomIntoView(newNodes as SceneNode[]);
+    figma.viewport.zoom = figma.viewport.zoom * 0.65;
   }
 }
