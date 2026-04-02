@@ -31,5 +31,11 @@ export async function buildSvg(
   if (json.style?.x !== undefined) frame.x = json.style.x;
   if (json.style?.y !== undefined) frame.y = json.style.y;
 
+  // CSS transform rotation → Figma rotation
+  // style-builder.js 已做符号转换（CSS 顺时针为正 → Figma 逆时针为正），直接赋值即可
+  if (json.style?.rotation !== undefined && json.style.rotation !== 0) {
+    frame.rotation = json.style.rotation as number;
+  }
+
   return frame;
 }

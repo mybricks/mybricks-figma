@@ -261,6 +261,19 @@ export interface FillObject {
   content?: string;
   /** 图片 URL（当 content 未内联时可选，插件尝试拉取） */
   url?: string;
+  /**
+   * 图片填充模式，对应 Figma ImagePaint.scaleMode：
+   * - FILL（默认）：拉伸填满
+   * - TILE：平铺重复（对应 CSS background-repeat: repeat）
+   * - FIT：按比例适应
+   * - CROP：裁切
+   */
+  scaleMode?: 'FILL' | 'TILE' | 'FIT' | 'CROP';
+  /**
+   * TILE 模式下每个平铺单元的缩放比例（相对节点尺寸，范围 0.01–100）。
+   * 仅当 scaleMode === 'TILE' 时有效，默认由消费端设定。
+   */
+  scalingFactor?: number;
 }
 
 export interface VectorPathJSON {

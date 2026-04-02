@@ -179,12 +179,17 @@ export async function applyFills(node: GeometryMixin, fills?: (string | FillObje
     }
 
     if (f.type === 'IMAGE' && (f.content || f.url)) {
+      const scaleMode: ImagePaint['scaleMode'] =
+        f.scaleMode === 'TILE' || f.scaleMode === 'FIT' || f.scaleMode === 'CROP'
+          ? f.scaleMode
+          : 'FILL';
+      const extraProps = scaleMode === 'TILE' ? { scalingFactor: f.scalingFactor ?? 0.5 } : {};
       if (f.content) {
         const bytes = dataUrlToBytes(f.content);
         if (bytes && bytes.length > 0) {
           try {
             const image = figma.createImage(bytes);
-            paintArray.push({ type: 'IMAGE', imageHash: image.hash, scaleMode: 'FILL' } as ImagePaint);
+            paintArray.push({ type: 'IMAGE', imageHash: image.hash, scaleMode, ...extraProps } as ImagePaint);
           } catch (e) {
             console.warn('[image fill] createImage 失败', (e as Error)?.message);
           }
@@ -192,7 +197,7 @@ export async function applyFills(node: GeometryMixin, fills?: (string | FillObje
       } else if (f.url) {
         try {
           const image = await figma.createImageAsync(f.url);
-          paintArray.push({ type: 'IMAGE', imageHash: image.hash, scaleMode: 'FILL' } as ImagePaint);
+          paintArray.push({ type: 'IMAGE', imageHash: image.hash, scaleMode, ...extraProps } as ImagePaint);
         } catch (e) {
           console.warn('[image fill] createImageAsync url 失败', (e as Error)?.message);
         }
